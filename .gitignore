@@ -1,18 +1,20 @@
 .venv/
 __pycache__/
 *.pyc
+*.egg-info/
 .pytest_cache/
+/build/
 
 # Run artefacts. The state file is the previous run, so it is machine-local.
-out/
-state/
-*.egg-info/
+# The leading slashes matter: a bare `out/` also swallows demo/out/, which is
+# where the committed clip lives.
+/out/
+/state/
+/logs/
 
-# Fetched toolchains and demo scratch. demo/out/ is committed on purpose:
-# the clip is the deliverable.
+# Fetched toolchains and demo scratch. demo/out/ and demo/out-terminal/ are
+# committed on purpose: the clips are the deliverable.
 demo/.toolchain/
 demo/.scratch/
 demo/out/raw/
 demo/out-terminal/raw/
-logs/
-build/
