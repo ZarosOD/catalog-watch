@@ -1,0 +1,57 @@
+/* Deliberately plain and high-contrast: this page is recorded, and a
+   screenshot has to stay legible after it is scaled into a README. */
+:root {
+  --ink: #16202b;
+  --muted: #63748a;
+  --line: #d7dee7;
+  --ok: #1a7f4b;
+  --no: #b4302c;
+  --wait: #9a6a12;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font: 16px/1.45 -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  color: var(--ink);
+  background: #f4f6f9;
+}
+.masthead {
+  background: #16202b;
+  color: #fff;
+  padding: 18px 32px;
+  display: flex;
+  align-items: baseline;
+  gap: 18px;
+}
+.brand { font-size: 22px; font-weight: 700; letter-spacing: .2px; }
+.tagline { color: #9fb2c6; font-size: 14px; }
+main { padding: 24px 32px 40px; max-width: 1180px; margin: 0 auto; }
+.catalogue-title {
+  font-size: 19px; margin: 4px 0 20px; display: flex;
+  align-items: baseline; justify-content: space-between;
+  border-bottom: 1px solid var(--line); padding-bottom: 10px;
+}
+.page-of { font-size: 14px; font-weight: 400; color: var(--muted); }
+.grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.product {
+  background: #fff; border: 1px solid var(--line); border-radius: 8px;
+  padding: 14px 16px 16px; display: grid;
+  grid-template-columns: 56px 1fr; grid-template-rows: auto auto auto;
+  column-gap: 14px; align-items: start;
+}
+.thumb { grid-row: 1 / 4; width: 56px; height: 56px; border-radius: 6px; }
+.tone-0 { background: #c7d7e6; } .tone-1 { background: #d4dfc9; }
+.tone-2 { background: #e6d9c2; } .tone-3 { background: #cdd3e4; }
+.tone-4 { background: #dccfd9; } .tone-5 { background: #c4dcd8; }
+.tone-6 { background: #e3d5c7; } .tone-7 { background: #d0dae3; }
+.product-name { font-size: 15px; font-weight: 600; margin: 0; line-height: 1.3; }
+.sku { grid-column: 2; margin: 3px 0 0; font: 12px/1 ui-monospace, "SF Mono", Menlo, Consolas, monospace; color: var(--muted); }
+.price { grid-column: 2; margin: 8px 0 0; font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.stock { grid-column: 2; margin: 4px 0 0; font-size: 13px; font-weight: 600; }
+.stock.ok { color: var(--ok); } .stock.no { color: var(--no); } .stock.wait { color: var(--wait); }
+.product-link { grid-column: 2; margin-top: 6px; font-size: 13px; color: #2b6cb0; }
+.pager { margin-top: 22px; display: flex; gap: 18px; font-size: 15px; }
+.pager a { color: #2b6cb0; text-decoration: none; font-weight: 600; }
+.detail { max-width: 520px; }
+.detail .product-name { font-size: 24px; margin-top: 16px; }
+footer { padding: 16px 32px 32px; color: var(--muted); font-size: 13px; }

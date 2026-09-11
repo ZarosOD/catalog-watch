@@ -1,0 +1,22 @@
+{
+  "name": "Tidewater Supply Co. (bundled fixture)",
+  "product": {
+    "selector": "article.product"
+  },
+  "fields": {
+    "sku": { "selector": ".sku" },
+    "name": { "selector": ".product-name" },
+    "price": { "selector": ".price", "parse": "money" },
+    "availability": { "selector": ".stock", "parse": "availability" },
+    "url": { "selector": "a.product-link", "attr": "href", "parse": "url" }
+  },
+  "required": ["sku", "name", "price"],
+  "pagination": {
+    "next_selector": "a.next",
+    "max_pages": 25
+  },
+  "availability_map": {
+    "back-order": "backorder",
+    "pre-order": "preorder"
+  }
+}

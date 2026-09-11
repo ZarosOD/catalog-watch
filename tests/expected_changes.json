@@ -1,0 +1,41 @@
+{
+  "day1_products": 30,
+  "day2_products": 30,
+  "unreadable_price_skus": [
+    "TW-1130"
+  ],
+  "changes": [
+    {
+      "kind": "price",
+      "sku": "TW-1004",
+      "before": "48.00",
+      "after": "41.50"
+    },
+    {
+      "kind": "availability",
+      "sku": "TW-1078",
+      "before": "In stock",
+      "after": "Out of stock"
+    },
+    {
+      "kind": "price",
+      "sku": "TW-1084",
+      "before": "88.25",
+      "after": "79.95"
+    },
+    {
+      "kind": "price",
+      "sku": "TW-2057",
+      "before": "87.40",
+      "after": "94.80"
+    },
+    {
+      "kind": "delisted",
+      "sku": "TW-2101"
+    },
+    {
+      "kind": "new",
+      "sku": "TW-2125"
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+[Unit]
+Description=Run catalog-watch every morning at 06:00
+Documentation=file:/opt/catalog-watch/README.md
+
+[Timer]
+OnCalendar=*-*-* 06:00:00
+
+# If the machine was asleep or off at 06:00, run as soon as it is back. A
+# missed morning is a gap in the change history, and the state file means the
+# late run still reports everything that moved since the last real one.
+Persistent=true
+
+# So thirty of these on one box do not all hit at once.
+RandomizedDelaySec=5min
+
+Unit=catalog-watch.service
+
+[Install]
+WantedBy=timers.target

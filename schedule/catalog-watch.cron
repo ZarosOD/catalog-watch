@@ -1,0 +1,33 @@
+# catalog-watch, every morning at 06:00.
+#
+# Install:   crontab -l > /tmp/ct; cat schedule/catalog-watch.cron >> /tmp/ct; crontab /tmp/ct
+# Check:     crontab -l
+# Test it:   make schedule-check     (runs the same wrapper under `env -i`)
+#
+# Edit REPO to wherever you cloned this. Everything else can stay.
+
+REPO=/opt/catalog-watch
+MAILTO=you@example.com
+
+# Cron's PATH is minimal. run.sh does not rely on it, but `date` and `mkdir`
+# come from here.
+PATH=/usr/bin:/bin
+
+# The target and the state file. Change --serve fixtures/site-day2 to the real
+# catalogue URL once you have a site profile for it:
+#   CATALOG_WATCH_TARGET=https://shop.example.com/collections/all
+CATALOG_WATCH_TARGET=--serve fixtures/site-day2
+CATALOG_WATCH_STATE=/opt/catalog-watch/state/catalog.json
+CATALOG_WATCH_OUT=/opt/catalog-watch/out
+CATALOG_WATCH_LOG_DIR=/var/log/catalog-watch
+
+# m h dom mon dow  command
+0 6 * * *  $REPO/schedule/run.sh
+
+# Anything the wrapper prints — the change summary — is mailed to MAILTO.
+# To send it somewhere else, pipe it; it is plain text on stdout:
+#   0 6 * * *  $REPO/schedule/run.sh | mail -s "catalogue changes" you@example.com
+#
+# To be paged only when something actually moved, add --fail-on-change and let
+# the non-zero exit trigger your alerting:
+#   0 6 * * *  $REPO/schedule/run.sh --fail-on-change

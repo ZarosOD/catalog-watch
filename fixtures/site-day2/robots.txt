@@ -1,0 +1,8 @@
+User-agent: *
+Disallow: /cart/
+Allow: /
+Crawl-delay: 0.2
+
+# Synthetic fixture. The point of this file is that catalog-watch reads it
+# before the first request: it stops on a disallowed path, and it slows down to
+# the crawl-delay the site asks for.

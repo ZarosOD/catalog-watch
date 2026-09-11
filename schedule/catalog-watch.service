@@ -1,0 +1,34 @@
+[Unit]
+Description=catalog-watch — scrape the catalogue and report what changed
+Documentation=file:/opt/catalog-watch/README.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/catalog-watch
+ExecStart=/opt/catalog-watch/schedule/run.sh
+
+# Same knobs as the crontab. Point TARGET at a real URL once you have a site
+# profile for it.
+Environment=CATALOG_WATCH_TARGET=--serve fixtures/site-day2
+Environment=CATALOG_WATCH_STATE=/opt/catalog-watch/state/catalog.json
+Environment=CATALOG_WATCH_OUT=/opt/catalog-watch/out
+Environment=CATALOG_WATCH_LOG_DIR=/var/log/catalog-watch
+
+# The change summary goes to the journal: journalctl -u catalog-watch
+StandardOutput=journal
+StandardError=journal
+
+# A scrape has no business writing outside its own directory.
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/opt/catalog-watch/state /opt/catalog-watch/out /var/log/catalog-watch
+
+# It fetches pages; it should not hang for an hour if the site stops answering.
+TimeoutStartSec=15min
+
+[Install]
+WantedBy=multi-user.target

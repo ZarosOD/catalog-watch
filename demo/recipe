@@ -1,0 +1,9 @@
+# Which recording recipe demo/record.sh uses. One of the names in demo/lib/.
+#
+# playwright — this piece. The thing worth showing is a storefront page and the
+#              report that comes out of watching it, so the clip is a real
+#              browser. See demo/scene.py.
+#
+# vhs        — the terminal sibling, also live in this repo. Try it with
+#              DEMO_RECIPE=vhs ./demo/record.sh and see demo/demo.tape.
+playwright
