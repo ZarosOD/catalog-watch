@@ -50,9 +50,13 @@ git clone <this repo> && cd catalog-watch
 make run
 ```
 
-About 40 seconds from a dead clone on a machine with no Python 3.12, most of it
-spent downloading a pinned `uv` and an interpreter. `make run` does two runs a
-day apart, because one run of a change report has nothing to report:
+**9 seconds** from a dead clone to real output, measured with an empty `HOME`
+and `PATH=/usr/bin:/bin` — no `uv`, no virtualenv, no caches. Most of that is
+fetching a pinned `uv`. On a machine with no Python 3.12 at all, uv downloads
+an interpreter too and it is closer to a minute.
+
+`make run` does two runs a day apart, because one run of a change report has
+nothing to report:
 
 ```
 === run 1 of 2: yesterday's catalogue (fixtures/site) ===
@@ -70,9 +74,11 @@ make schedule-check    # prove the cron wrapper works, under cron's environment
 make demo              # regenerate the clip above, headless
 ```
 
-`make demo` downloads about 170 MB of headless Chromium the first time and
-takes roughly three minutes on a cold machine; a re-record afterwards is about
-40 seconds. That is the real number, not a trimmed one.
+`make demo` is slower, because it downloads a headless Chromium. The real
+numbers, same clean-machine conditions: **67 seconds** from nothing — no
+Playwright, no browser, no ffmpeg — and **41 seconds** to re-record once the
+toolchain is there. It leaves about 750 MB in `demo/.toolchain/`, all of it
+inside the repo and none of it installed system-wide. `make clean` removes it.
 
 If you would rather use your own tooling:
 
@@ -301,7 +307,7 @@ make fixtures     # regenerate them
 make test          # or: .venv/bin/python -m pytest -q
 ```
 
-114 tests.
+116 tests.
 
 | File | Covers |
 | --- | --- |

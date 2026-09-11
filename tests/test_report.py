@@ -108,6 +108,33 @@ class TestXlsx:
         book = load_workbook(path)
         assert "no changes" in book["Changes"].cell(row=2, column=1).value
 
+    def test_prices_are_numbers_not_text(self, tmp_path):
+        from openpyxl import load_workbook
+
+        before = snapshot(product(price="48.00"))
+        after = snapshot(product(price="41.50"))
+        changes, rows = build(before, after)
+        path = report.write_xlsx(tmp_path / "p.xlsx", rows, changes, "s")
+        book = load_workbook(path)
+
+        catalogue = book["Catalogue"]
+        price_cell = catalogue.cell(row=2, column=report.COLUMNS.index("price") + 1)
+        assert price_cell.value == 41.5
+        assert price_cell.number_format == "0.00"
+
+        change_sheet = book["Changes"]
+        assert change_sheet.cell(row=2, column=4).value == 48.0
+        assert change_sheet.cell(row=2, column=5).value == 41.5
+
+    def test_an_unreadable_price_stays_empty_rather_than_becoming_zero(self, tmp_path):
+        from openpyxl import load_workbook
+
+        _, rows = build(None, snapshot(product(price=None, issues=["price: missing"])))
+        path = report.write_xlsx(tmp_path / "p.xlsx", rows, [], "s")
+        book = load_workbook(path)
+        cell = book["Catalogue"].cell(row=2, column=report.COLUMNS.index("price") + 1)
+        assert cell.value in (None, "")
+
 
 class TestSummary:
     def test_first_run_says_baseline(self):

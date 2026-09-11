@@ -105,6 +105,22 @@ def write_csv(path: str | Path, rows: list[dict]) -> Path:
     return path
 
 
+def _as_money(cell) -> None:
+    """Turn a cell holding "41.50" into the number 41.50, formatted.
+
+    An empty cell is a price we could not read, and it stays empty — writing a
+    0 there would be the guess this whole tool exists not to make.
+    """
+    value = cell.value
+    if value in (None, ""):
+        return
+    try:
+        cell.value = float(value)
+    except (TypeError, ValueError):
+        return
+    cell.number_format = "0.00"
+
+
 def write_xlsx(
     path: str | Path, rows: list[dict], changes: list[Change], summary: str
 ) -> Path:
@@ -145,6 +161,10 @@ def write_xlsx(
         if change.kind == "price":
             fill = up_fill if change.note.startswith("+") else down_fill
             sheet.cell(row=index, column=1).fill = fill
+            # Numbers, not text that looks like numbers: a before/after column
+            # you cannot subtract is not much use in a spreadsheet.
+            for column in (4, 5):
+                _as_money(sheet.cell(row=index, column=column))
         elif change.kind == UNREADABLE:
             sheet.cell(row=index, column=1).fill = review_fill
     if not changes:
@@ -152,9 +172,11 @@ def write_xlsx(
 
     catalogue = workbook.create_sheet("Catalogue")
     catalogue.append(COLUMNS)
+    price_column = COLUMNS.index("price") + 1
     for row in rows:
         catalogue.append([row[column] for column in COLUMNS])
     for index, row in enumerate(rows, start=2):
+        _as_money(catalogue.cell(row=index, column=price_column))
         if row["needs_review"] == "yes":
             catalogue.cell(row=index, column=1).fill = review_fill
 

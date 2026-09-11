@@ -141,10 +141,12 @@ is how to verify the from-nothing path still works.
   macOS would need `brew install vhs ttyd ffmpeg` and a small edit; the
   Playwright recipe is closer to portable, since the wheel and the browser
   download are both platform-aware already.
-- **First Playwright run downloads about 170 MB of Chromium** and takes around
-  three minutes on a cold machine; after that a re-record is about 40 seconds.
-  The VHS recipe downloads its own Chromium separately, so running both costs
-  two browser downloads.
+- **The first run downloads a browser.** Measured from a dead clone with an
+  empty `HOME` and `PATH=/usr/bin:/bin`: Playwright 67 s from nothing, 41 s to
+  re-record; VHS 59 s from nothing. The two recipes download *separate*
+  Chromiums (Playwright's into `demo/.toolchain/browsers`, VHS's into
+  `~/.cache/rod`), so a repo that records both pays for both. The toolchain
+  comes to roughly 750 MB; `make clean` removes it.
 - **The clip is a GIF and an MP4 of the same recording.** The GIF is for
   embedding in a README, the MP4 for anywhere that will play video — it is
   about a tenth the size at better quality.
