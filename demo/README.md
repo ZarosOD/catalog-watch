@@ -33,7 +33,7 @@ the other way, because they were about to be copy-pasted into a third piece:
 | --- | --- | --- |
 | Records | A terminal session | A real browser page |
 | You write | `demo.tape` — a script of keystrokes and pauses | `scene.py` — Playwright code |
-| Good at | Crisp text at small sizes; tiny files (this repo: 280 KB) | Anything with a UI, a page, or a before/after to point at |
+| Good at | Crisp text at small sizes; tiny files (this repo: 348 KB) | Anything with a UI, a page, or a before/after to point at |
 | Bad at | Anything that is not text in a terminal | Files are 10× bigger (this repo: 3.3 MB) |
 | Timing | Declarative `Sleep 3s` | `page.wait_for_timeout(3000)` — same idea, in Python |
 | Output | GIF | GIF **and** MP4, from one recording |
@@ -168,7 +168,8 @@ is how to verify the from-nothing path still works.
   download are both platform-aware already.
 - **The first run downloads a browser.** Measured from a dead clone with an
   empty `HOME` and `PATH=/usr/bin:/bin`: Playwright 67 s from nothing, 41 s to
-  re-record; VHS 59 s from nothing. The two recipes download *separate*
+  re-record; VHS 59 to 70 s from nothing across repeat measurements — the
+  download is the variable, not the recording. The two recipes download *separate*
   Chromiums (Playwright's into `demo/.toolchain/browsers`, VHS's into
   `~/.cache/rod`), so a repo that records both pays for both. The toolchain
   comes to roughly 750 MB; `make clean` removes it.

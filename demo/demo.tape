@@ -47,3 +47,8 @@ Show
 
 Type "ls out/" Enter
 Sleep 3.5s
+
+# Also the one beat that exercises demo/lib/preview.py inside a real VHS
+# render, so the shared helper is proven at GIF size and not only in pytest.
+Type "python demo/lib/preview.py out/products.csv sku name price change --rows 5" Enter
+Sleep 4.5s
