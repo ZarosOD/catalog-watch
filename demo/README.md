@@ -15,8 +15,17 @@ than 35 seconds.
 This is the second piece to use this pipeline. The first
 (`pdf-to-csv`) had one recipe, VHS, wired straight into the orchestrator. This
 one adds the browser recipe, so the orchestrator now **picks** a recipe instead
-of being one. That is the only structural change: nothing that was generic
-became piece-specific.
+of being one. Nothing that was generic became piece-specific; two things went
+the other way, because they were about to be copy-pasted into a third piece:
+
+- **`lib/python-venv.sh`** — the uv / `python3 -m venv` / fail-with-advice
+  ladder. It was thirty lines inside `setup.sh`, a file this README calls
+  project-specific, of which one string actually differed per project. A file
+  you copy and edit one line of is forked, not reused.
+- **`lib/preview.py`** — renders a CSV as a fixed-width table. The first piece
+  had a one-off version, this piece does not need one, and a piece whose story
+  is "dirty file in, clean file out" needs exactly this. Written generically
+  once instead of specifically three times.
 
 ## Which recipe
 
@@ -48,13 +57,14 @@ Copy the whole `demo/` folder. Then change **these files and nothing else**:
 | File | What to change |
 | --- | --- |
 | `recipe` | One word: `playwright` or `vhs`. |
-| `setup.sh` | How to get the project runnable — the venv, `npm ci`, a build. Must be re-runnable and must leave the repo ready to record. |
+| `setup.sh` | Two lines in practice: the import names you pass `ensure_venv`, and whatever the piece needs regenerated before recording. A non-Python piece replaces the `ensure_venv` call with its own build. |
 | `scene.py` | The Playwright recipe's script. Delete it if you chose VHS. |
 | `demo.tape` | The VHS recipe's tape. Delete it if you chose Playwright. |
 
 Leave `record.sh` and everything in `lib/` alone. If you find yourself editing
 one of those to make your piece work, the split is wrong — fix the split, do
-not fork the file.
+not fork the file. `lib/python-venv.sh` and `lib/preview.py` are both there
+because that rule was applied rather than quoted.
 
 ## Adding a recipe
 
@@ -98,16 +108,31 @@ how this repo keeps both clips without one wiping the other.
   seconds is about right for a table; 7 for a long report.
 - **No `Output` line.** `record.sh` passes `vhs -o` so the clip goes where it
   was asked to go.
+- **Show a CSV with `lib/preview.py`, not `cat`.** Raw CSV wraps, and a wrapped
+  line is unreadable at GIF sizes. The helper picks columns, caps rows,
+  truncates cells with `…` and right-aligns numeric columns:
+
+  ```bash
+  python demo/lib/preview.py out/products.csv sku name price change --rows 6
+  ```
+
+  It prints `... and 25 more rows (31 total)` under a capped table, on purpose:
+  a clip that shows six rows of a thirty-one-row file should say so. Naming a
+  column the file does not have is an error listing the ones it does, rather
+  than a blank column that looks fine on camera. `--collapse` drops a row
+  identical to the one above it, for a file that repeats parent fields across
+  child rows. Tested in `tests/test_demo_preview.py`.
 
 ## Toolchain
 
 Everything lands in `demo/.toolchain/` (gitignored). Nothing system-wide, no
-root, all pinned.
+root, versions pinned except where noted.
 
 | File | Fetches | Pin | Why pinned |
 | --- | --- | --- | --- |
 | `lib/uv.sh` | uv | 0.12.13 | Checksum-verified against the published `.sha256`. |
-| `lib/ffmpeg.sh` | ffmpeg, ffprobe | static build | Used by both recipes. A system `ffmpeg` is used if present. |
+| `lib/python-venv.sh` | nothing directly | — | The venv ladder. Calls `lib/uv.sh` when the machine has no uv. |
+| `lib/ffmpeg.sh` | ffmpeg, ffprobe | **current release, not pinned** | The static build publishes one URL for the newest version; there is no per-version URL to pin to. A system `ffmpeg` is used if present. Used by both recipes. |
 | `lib/vhs.sh` | vhs, ttyd | 0.10.0, 1.7.7 | **vhs deliberately**: 0.12.x starts Chromium, captures every frame, then exits 0 having written no file at all on some Linux hosts. 0.10.0 encodes reliably. |
 | `lib/playwright.sh` | the `playwright` wheel + Chromium | 1.47.0 | Playwright for *Python*, not Node: the wheel ships its own driver, so a machine with no Node can still record. |
 | `lib/chromium-libs.sh` | the shared objects Chromium links against | — | See below. |

@@ -6,7 +6,8 @@
 # uv, so "create a virtualenv" fails before a single line of project code
 # runs — which takes `make test`, `make run` and `make demo` down with it.
 #
-# So fetch uv the same way lib/bootstrap.sh fetches vhs/ttyd/ffmpeg: a pinned
+# So fetch uv the same way lib/vhs.sh fetches vhs/ttyd and lib/ffmpeg.sh
+# fetches ffmpeg: a pinned
 # release, unpacked inside the repo, no root and nothing system-wide. uv then
 # supplies the interpreter too, so the machine does not even need python3.12.
 #

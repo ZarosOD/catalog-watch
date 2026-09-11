@@ -41,10 +41,11 @@ RECIPE="${RECIPE:-vhs}"
 RECIPE_LIB="$DEMO_DIR/lib/$RECIPE.sh"
 if [ ! -f "$RECIPE_LIB" ]; then
   echo "record.sh: no recipe '$RECIPE'. Available:" >&2
+  # A recipe is a lib file that defines recipe_record; everything else in lib/
+  # is a shared helper. Asking the files what they are beats keeping a list of
+  # the ones to skip, which is a list that goes stale the next time lib/ grows.
   for candidate in "$DEMO_DIR"/lib/*.sh; do
-    case "$(basename "$candidate")" in
-      uv.sh|ffmpeg.sh|chromium-libs.sh) continue ;;
-    esac
+    grep -q '^recipe_record()' "$candidate" || continue
     echo "  $(basename "$candidate" .sh)" >&2
   done
   exit 1
