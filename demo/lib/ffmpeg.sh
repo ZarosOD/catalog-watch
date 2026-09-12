@@ -26,6 +26,9 @@ FFMPEG_VERSION="7.0.2"
 FFMPEG_URL="https://johnvansickle.com/ffmpeg/releases/ffmpeg-${FFMPEG_VERSION}-amd64-static.tar.xz"
 FFMPEG_SHA256="abda8d77ce8309141f83ab8edf0596834087c52467f6badf376a6a2a4c87cf67"
 
+# shellcheck source=fetch.sh
+. "$(dirname "${BASH_SOURCE[0]}")/fetch.sh"
+
 ffmpeg_log() { printf '  %s\n' "$*" >&2; }
 
 # An ffmpeg already on PATH is only worth using if it is the version we pinned.
@@ -68,8 +71,7 @@ ensure_ffmpeg() {
   ffmpeg_log "fetching ffmpeg $FFMPEG_VERSION (static build)"
   local work
   work="$(mktemp -d)"
-  if ! curl -fsSL "$FFMPEG_URL" -o "$work/ffmpeg.tar.xz"; then
-    ffmpeg_log "could not download $FFMPEG_URL"
+  if ! fetch_url "$FFMPEG_URL" "$work/ffmpeg.tar.xz"; then
     rm -rf "$work"
     return 1
   fi

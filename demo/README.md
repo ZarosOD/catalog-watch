@@ -27,6 +27,13 @@ the other way, because they were about to be copy-pasted into a third piece:
   is "dirty file in, clean file out" needs exactly this. Written generically
   once instead of specifically three times.
 
+`lib/` has since gained one file from a later piece rather than from this one:
+**`lib/fetch.sh`**, the download retry ladder, was written for piece #3
+(`feed-clean`) after GitHub's release CDN returned HTTP 500 on one asset for a
+couple of minutes and took `make demo` down with it. It was back-synced here so
+that `lib/` is one version across every piece that carries it — a shared file
+that differs between repos is three files wearing the same name.
+
 ## Which recipe
 
 | | **VHS** (`lib/vhs.sh`) | **Playwright** (`lib/playwright.sh`) |
@@ -137,6 +144,7 @@ root, versions pinned except where noted.
 
 | File | Fetches | Pin | Why pinned |
 | --- | --- | --- | --- |
+| `lib/fetch.sh` | nothing itself | — | Every download below goes through it: a few attempts, a widening gap, and a message that separates "the host is having a moment" from "the URL is wrong". Failure is fatal for vhs (no recording without it) and a fallback for uv (there is still `python3 -m venv`). |
 | `lib/uv.sh` | uv | 0.12.13 | Checksum-verified against the published `.sha256`. |
 | `lib/python-venv.sh` | nothing directly | — | The venv ladder. Calls `lib/uv.sh` when the machine has no uv. |
 | `lib/ffmpeg.sh` | ffmpeg, ffprobe | 7.0.2 | Checksum-verified against a constant in the file, so a swapped tarball fails instead of quietly changing what the clip looks like. A system `ffmpeg` is used only if it reports the same version. Used by both recipes. |
