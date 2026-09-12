@@ -36,7 +36,14 @@ the other way, because they were about to be copy-pasted into a third piece:
 | Good at | Crisp text at small sizes; tiny files (this repo: 348 KB) | Anything with a UI, a page, or a before/after to point at |
 | Bad at | Anything that is not text in a terminal | Files are 10× bigger (this repo: 3.3 MB) |
 | Timing | Declarative `Sleep 3s` | `page.wait_for_timeout(3000)` — same idea, in Python |
-| Output | GIF | GIF **and** MP4, from one recording |
+| Output | GIF **and** MP4, from one recording | GIF **and** MP4, from one recording |
+
+Both recipes write both formats because the two are for different places. The
+**GIF** is the README thumbnail: it animates inline on GitHub and needs no
+player. The **MP4** is the portfolio cover, because Upwork's gallery renders an
+uploaded GIF as a single static first frame — a GIF there is a screenshot with
+extra bytes. Neither is generated from the other; they are two encodes of the
+same captured frames, so they cannot drift apart.
 
 **Pick VHS when the deliverable is a command.** A client watching a CLI wants
 to read the output, and VHS renders text natively rather than photographing it.
