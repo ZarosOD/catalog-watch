@@ -75,7 +75,7 @@ make demo              # regenerate the clip above, headless
 ```
 
 `make demo` is slower, because it downloads a headless Chromium. The real
-numbers, same clean-machine conditions: **67 seconds** from nothing — no
+numbers, same clean-machine conditions: **about 80 seconds** from nothing — no
 Playwright, no browser, no ffmpeg — and **41 seconds** to re-record once the
 toolchain is there. It leaves about 750 MB in `demo/.toolchain/`, all of it
 inside the repo and none of it installed system-wide. `make clean` removes it.
@@ -307,7 +307,7 @@ make fixtures     # regenerate them
 make test          # or: .venv/bin/python -m pytest -q
 ```
 
-116 tests.
+131 tests.
 
 | File | Covers |
 | --- | --- |
@@ -318,6 +318,8 @@ make test          # or: .venv/bin/python -m pytest -q
 | `test_site.py` | Site profiles failing at load time with a message that says what to fix. |
 | `test_report.py` | CSV shape, XLSX sheets, and the wording of the summary. |
 | `test_cli.py` | End to end over real HTTP against the fixture, asserting against `tests/expected_changes.json`. |
+| `test_demo_preview.py` | The table renderer in `demo/lib/`: column picking, row caps, the `…` truncation, and erroring on a column the file does not have. |
+| `test_demo_outputs.py` | That the recording writes both the GIF and the MP4, including the case where `vhs` exits `0` having skipped one of them. |
 
 ## Recording the demo
 

@@ -33,8 +33,8 @@ the other way, because they were about to be copy-pasted into a third piece:
 | --- | --- | --- |
 | Records | A terminal session | A real browser page |
 | You write | `demo.tape` — a script of keystrokes and pauses | `scene.py` — Playwright code |
-| Good at | Crisp text at small sizes; tiny files (this repo: 348 KB) | Anything with a UI, a page, or a before/after to point at |
-| Bad at | Anything that is not text in a terminal | Files are 10× bigger (this repo: 3.3 MB) |
+| Good at | Crisp text at small sizes; tiny files (this repo: 343 KB) | Anything with a UI, a page, or a before/after to point at |
+| Bad at | Anything that is not text in a terminal | Files are about 7× bigger (this repo: 2.5 MB) |
 | Timing | Declarative `Sleep 3s` | `page.wait_for_timeout(3000)` — same idea, in Python |
 | Output | GIF **and** MP4, from one recording | GIF **and** MP4, from one recording |
 
@@ -174,12 +174,13 @@ is how to verify the from-nothing path still works.
   Playwright recipe is closer to portable, since the wheel and the browser
   download are both platform-aware already.
 - **The first run downloads a browser.** Measured from a dead clone with an
-  empty `HOME` and `PATH=/usr/bin:/bin`: Playwright 67 s from nothing, 41 s to
-  re-record; VHS 59 to 70 s from nothing across repeat measurements — the
-  download is the variable, not the recording. The two recipes download *separate*
-  Chromiums (Playwright's into `demo/.toolchain/browsers`, VHS's into
-  `~/.cache/rod`), so a repo that records both pays for both. The toolchain
-  comes to roughly 750 MB; `make clean` removes it.
+  empty `HOME` and `PATH=/usr/bin:/bin`: Playwright about 80 s from nothing, 41 s
+  to re-record; VHS about 100 s from nothing. The download is the variable, not
+  the recording — expect these to move with the network, and the re-record time
+  not to. The two recipes download *separate* Chromiums (Playwright's into
+  `demo/.toolchain/browsers`, VHS's into `~/.cache/rod`), so a repo that records
+  both pays for both. The toolchain comes to roughly 750 MB; `make clean`
+  removes it.
 - **The clip is a GIF and an MP4 of the same recording.** The GIF is for
   embedding in a README, the MP4 for anywhere that will play video — it is
   about a tenth the size at better quality.
