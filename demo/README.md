@@ -34,7 +34,7 @@ the other way, because they were about to be copy-pasted into a third piece:
 | Records | A terminal session | A real browser page |
 | You write | `demo.tape` — a script of keystrokes and pauses | `scene.py` — Playwright code |
 | Good at | Crisp text at small sizes; tiny files (this repo: 343 KB) | Anything with a UI, a page, or a before/after to point at |
-| Bad at | Anything that is not text in a terminal | Files are about 7× bigger (this repo: 2.5 MB) |
+| Bad at | Anything that is not text in a terminal | Files are about 7× bigger (this repo: 2.3 MB) |
 | Timing | Declarative `Sleep 3s` | `page.wait_for_timeout(3000)` — same idea, in Python |
 | Output | GIF **and** MP4, from one recording | GIF **and** MP4, from one recording |
 
@@ -139,7 +139,7 @@ root, versions pinned except where noted.
 | --- | --- | --- | --- |
 | `lib/uv.sh` | uv | 0.12.13 | Checksum-verified against the published `.sha256`. |
 | `lib/python-venv.sh` | nothing directly | — | The venv ladder. Calls `lib/uv.sh` when the machine has no uv. |
-| `lib/ffmpeg.sh` | ffmpeg, ffprobe | **current release, not pinned** | The static build publishes one URL for the newest version; there is no per-version URL to pin to. A system `ffmpeg` is used if present. Used by both recipes. |
+| `lib/ffmpeg.sh` | ffmpeg, ffprobe | 7.0.2 | Checksum-verified against a constant in the file, so a swapped tarball fails instead of quietly changing what the clip looks like. A system `ffmpeg` is used only if it reports the same version. Used by both recipes. |
 | `lib/vhs.sh` | vhs, ttyd | 0.10.0, 1.7.7 | **vhs deliberately**: 0.12.x starts Chromium, captures every frame, then exits 0 having written no file at all on some Linux hosts. 0.10.0 encodes reliably. |
 | `lib/playwright.sh` | the `playwright` wheel + Chromium | 1.47.0 | Playwright for *Python*, not Node: the wheel ships its own driver, so a machine with no Node can still record. |
 | `lib/chromium-libs.sh` | the shared objects Chromium links against | — | See below. |
@@ -184,3 +184,18 @@ is how to verify the from-nothing path still works.
 - **The clip is a GIF and an MP4 of the same recording.** The GIF is for
   embedding in a README, the MP4 for anywhere that will play video — it is
   about a tenth the size at better quality.
+- **Re-recording reproduces the committed clip closely, not exactly.** Over six
+  recordings: the browser GIF stays within 4% (0.3% from a clean clone), the
+  browser MP4 within 8%, the terminal clip within 1%. VHS is the steady one
+  because it renders text to frames itself. The Playwright recipe records a
+  live browser, so page-load timing decides which frames land either side of a
+  cut, and the MP4 moves more than the GIF because nothing quantises it — it
+  spends real bits on whatever detail that capture happened to carry. Sizes to
+  expect: browser 2.3 MB GIF / 331 KB MP4, terminal 343 KB / 263 KB. Much
+  outside that is worth a look rather than a shrug; a 37% jump is what sent us
+  looking and found the VP8 noise that `GIF_QUANT` in `lib/playwright.sh` now
+  removes.
+- **The report beat shows a live timestamp.** `changes.txt` prints the time of
+  the run it compared against, so those characters differ on every recording.
+  It costs nothing in file size and it is honest about what the tool writes, but
+  it does mean no two clips are pixel-identical.
