@@ -27,12 +27,26 @@ the other way, because they were about to be copy-pasted into a third piece:
   is "dirty file in, clean file out" needs exactly this. Written generically
   once instead of specifically three times.
 
-`lib/` has since gained one file from a later piece rather than from this one:
-**`lib/fetch.sh`**, the download retry ladder, was written for piece #3
-(`feed-clean`) after GitHub's release CDN returned HTTP 500 on one asset for a
-couple of minutes and took `make demo` down with it. It was back-synced here so
-that `lib/` is one version across every piece that carries it — a shared file
-that differs between repos is three files wearing the same name.
+Two things have since been back-synced here from a later piece rather than
+written for this one:
+
+- **`lib/fetch.sh`**, the download retry ladder, written for piece #3
+  (`feed-clean`) after GitHub's release CDN returned HTTP 500 on one asset for
+  a couple of minutes and took `make demo` down with it.
+- **`record.sh` calling `setup.sh --fresh`**, also from piece #3, after that
+  piece shipped a `setup.sh` that deleted `out/` on every `make` target — so
+  `make test` threw away the output of the last `make run`. Wanting an empty
+  repo is the *recording's* requirement, so it is a flag the recording passes;
+  what "fresh" means stays in `setup.sh`, because only the piece knows which
+  directories it writes. Here that is `out/`, and it is not decorative: the VHS
+  tape films `ls out/`, so a file left over from an older run would show in the
+  clip as though this morning's run had produced it. This repo took the change
+  late. It sat on two of the four pieces for a day, which is why the drift
+  check now reads all of `demo/` and not only `demo/lib/`.
+
+Both were copied in so the shared half is one version across every piece that
+carries it — a shared file that differs between repos is three files wearing
+the same name.
 
 ## Which recipe
 
@@ -71,7 +85,7 @@ Copy the whole `demo/` folder. Then change **these files and nothing else**:
 | File | What to change |
 | --- | --- |
 | `recipe` | One word: `playwright` or `vhs`. |
-| `setup.sh` | Two lines in practice: the import names you pass `ensure_venv`, and whatever the piece needs regenerated before recording. A non-Python piece replaces the `ensure_venv` call with its own build. |
+| `setup.sh` | Two lines in practice: the import names you pass `ensure_venv`, and whatever the piece needs regenerated before recording. A non-Python piece replaces the `ensure_venv` call with its own build. Anything it deletes belongs under `--fresh` unless the piece itself owns it — every `make` target runs this file, so a wipe outside that flag is a wipe of the user's work. |
 | `scene.py` | The Playwright recipe's script. Delete it if you chose VHS. |
 | `demo.tape` | The VHS recipe's tape. Delete it if you chose Playwright. |
 
@@ -89,7 +103,7 @@ recipe_bootstrap          # fetch what it needs: no root, inside the repo
 recipe_record OUT_DIR     # leave a clip in OUT_DIR; set RECIPE_CLIP to it
 ```
 
-`record.sh` handles the rest: reading `demo/recipe`, running `setup.sh`,
+`record.sh` handles the rest: reading `demo/recipe`, running `setup.sh --fresh`,
 wiping the output directory, and checking the clip exists, is non-empty and is
 inside the time budget. `DEMO_RECIPE=<name> ./demo/record.sh` overrides the
 choice for one run; `DEMO_OUT_DIR=...` sends the clip somewhere else, which is
