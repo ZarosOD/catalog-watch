@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import csv
+import io
+import re
+import zipfile
 from decimal import Decimal
 
 from catalog_watch import report
@@ -182,3 +185,117 @@ class TestSummary:
         snap = snapshot(product(), product(sku="A-2", issues=["price: missing"]))
         text = report.summarise(snap, None, [], "Test Shop")
         assert "2 products on 2 pages · 1 read clean · 1 needing review" in text
+
+
+def with_a_moved_clock(data: bytes) -> bytes:
+    """The same workbook as a machine whose clock reads differently wrote it.
+
+    Both clocks move: the zip member stamps and the Office document's own
+    `dcterms` timestamps. This exists because writing the file twice inside
+    one test proves nothing — both saves land in the same second, so the check
+    passes whether or not anything was flattened. Moving the clock by hand is
+    what makes the assertion load-bearing.
+    """
+    source = zipfile.ZipFile(io.BytesIO(data))
+    out = io.BytesIO()
+    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as target:
+        for item in source.infolist():
+            body = source.read(item.filename)
+            if item.filename == "docProps/core.xml":
+                body = report._TIMESTAMP.sub(rb"\g<1>2031-07-04T11:22:33Z\g<2>", body)
+            info = zipfile.ZipInfo(item.filename, date_time=(2031, 7, 4, 11, 22, 32))
+            info.compress_type = item.compress_type
+            info.external_attr = item.external_attr
+            info.create_system = 0
+            target.writestr(info, body)
+    return out.getvalue()
+
+
+class TestReproducible:
+    """A watcher that runs every morning is read by comparing this morning's
+    file to yesterday's, so the bytes have to be decided by the catalogue and
+    not by the clock. An .xlsx is a zip of timestamped members and an Office
+    document with its own clock; both are flattened in `report._repack`."""
+
+    def _written(self, tmp_path):
+        before = snapshot(product(price="48.00"))
+        after = snapshot(product(price="41.50"), product(sku="A-2"))
+        changes, rows = build(before, after)
+        return report.write_xlsx(tmp_path / "products.xlsx", rows, changes, "summary")
+
+    def test_a_run_on_a_different_clock_produces_the_same_bytes(self, tmp_path):
+        """The real claim: what the file holds decides its bytes, and when it
+        was written does not. Feeding `_repack` a copy with both clocks moved
+        has to give back exactly what the tool wrote."""
+        written = self._written(tmp_path).read_bytes()
+        assert report._repack(with_a_moved_clock(written)) == written
+
+    def test_two_runs_a_day_apart_produce_identical_bytes(self, tmp_path):
+        """Two runs over an unchanged catalogue leave one file, so `cmp` can
+        stand in for "nothing moved overnight"."""
+        before = snapshot(product(price="48.00"))
+        after = snapshot(product(price="41.50"))
+        changes, rows = build(before, after)
+        first = report.write_xlsx(tmp_path / "first.xlsx", rows, changes, "s")
+        second = report.write_xlsx(tmp_path / "second.xlsx", rows, changes, "s")
+        assert first.read_bytes() == second.read_bytes()
+
+    def test_the_document_clock_is_flattened_not_just_the_zip(self, tmp_path):
+        """Two clocks, two fixes. Rewriting only the zip member timestamps
+        would leave docProps/core.xml differing every run, and the file would
+        still fail `cmp` while looking like it had been handled.
+
+        Measured on openpyxl 3.1.5: `created` honours the workbook property
+        and `modified` is refreshed to the save time regardless, so both
+        timestamps are checked by name. Asserting the epoch appears
+        *somewhere* in core.xml passes on `created` alone while `modified`
+        still moves.
+        """
+        path = self._written(tmp_path)
+        with zipfile.ZipFile(path) as book:
+            core = book.read("docProps/core.xml").decode("utf-8")
+            stamps = dict(re.findall(r"<dcterms:(created|modified)[^>]*>([^<]*)<", core))
+            assert stamps == {
+                "created": "1980-01-01T00:00:00Z",
+                "modified": "1980-01-01T00:00:00Z",
+            }
+            assert all(
+                item.date_time == (1980, 1, 1, 0, 0, 0) for item in book.infolist()
+            )
+
+    def test_a_cli_run_leaves_no_wall_clock_in_the_workbook(self, repo, tmp_path):
+        """The same claim through the entry point `make run` calls, because a
+        repack that the library applies and the CLI path bypasses would pass
+        every test above and still ship a moving file.
+
+        This asserts the *container* is flat, not that two CLI runs are
+        byte-equal. They are not, and not for any reason `_repack` owns: the
+        bundled demo is served on an ephemeral port, so the product URLs —
+        `http://127.0.0.1:<port>/...` — differ per run in the Catalogue sheet
+        and in products.csv alike, and the Run sheet prints the run time as a
+        visible cell. Both are contents of the report. Asserting `cmp` here
+        would be asserting something untrue of this tool.
+        """
+        from catalog_watch.cli import main
+
+        main(
+            [
+                "--serve",
+                str(repo / "fixtures" / "site-day2"),
+                "--site",
+                str(repo / "sites" / "fixture.json"),
+                "--state",
+                str(tmp_path / "state.json"),
+                "--out",
+                str(tmp_path / "out"),
+                "--quiet",
+                "--report",
+            ]
+        )
+        with zipfile.ZipFile(tmp_path / "out" / "products.xlsx") as book:
+            core = book.read("docProps/core.xml").decode("utf-8")
+            stamps = dict(re.findall(r"<dcterms:(created|modified)[^>]*>([^<]*)<", core))
+            assert set(stamps.values()) == {"1980-01-01T00:00:00Z"}
+            assert all(
+                item.date_time == (1980, 1, 1, 0, 0, 0) for item in book.infolist()
+            )

@@ -9,6 +9,9 @@ changed, on which product, from what to what.
 from __future__ import annotations
 
 import csv
+import io
+import re
+import zipfile
 from pathlib import Path
 
 from .models import (
@@ -203,8 +206,47 @@ def write_xlsx(
                 max(longest + 2, 9), 52
             )
 
-    workbook.save(path)
+    buffer = io.BytesIO()
+    workbook.save(buffer)
+    path.write_bytes(_repack(buffer.getvalue()))
     return path
+
+
+#: The two places an .xlsx records a wall clock. Measured on openpyxl 3.1.5:
+#: `created` honours `workbook.properties` and `modified` is refreshed to the
+#: save time whatever the properties said — so pinning it has to happen here,
+#: after the save.
+_TIMESTAMP = re.compile(
+    rb"(<dcterms:(?:created|modified)[^>]*>)[^<]*(</dcterms:(?:created|modified)>)"
+)
+_EPOCH_XML = b"1980-01-01T00:00:00Z"
+
+
+def _repack(data: bytes) -> bytes:
+    """Rewrite an xlsx with every clock in it flattened.
+
+    Two of them. An .xlsx is a zip, and `ZipFile.writestr` stamps each member
+    with the current local time; it is also an Office document, and
+    `docProps/core.xml` carries a modification timestamp that openpyxl
+    refreshes on save. Either one makes this morning's run and tomorrow's
+    produce different bytes for an unchanged catalogue, which would put "the
+    file is the same, so nothing moved" out of reach of `cmp` — the one check
+    a client might actually perform on a watcher that runs every day. Order
+    and contents are left exactly as openpyxl wrote them; only the clocks go.
+    """
+    source = zipfile.ZipFile(io.BytesIO(data))
+    out = io.BytesIO()
+    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as target:
+        for item in source.infolist():
+            body = source.read(item.filename)
+            if item.filename == "docProps/core.xml":
+                body = _TIMESTAMP.sub(rb"\g<1>" + _EPOCH_XML + rb"\g<2>", body)
+            info = zipfile.ZipInfo(item.filename, date_time=(1980, 1, 1, 0, 0, 0))
+            info.compress_type = item.compress_type
+            info.external_attr = item.external_attr
+            info.create_system = 0
+            target.writestr(info, body)
+    return out.getvalue()
 
 
 def _movement(change: Change) -> str:
