@@ -311,7 +311,9 @@ make fixtures     # regenerate them
 make test          # or: .venv/bin/python -m pytest -q
 ```
 
-206 tests.
+231 tests, two of which skip in a dead clone — the `ffprobe` cross-check in
+`tests/test_readme_clip.py`, which needs a toolchain `make demo` downloads.
+They are the suite's only skips and they are a cross-check, not a guard.
 
 | File | Covers |
 | --- | --- |
