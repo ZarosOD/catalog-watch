@@ -53,7 +53,8 @@ make run
 **9 seconds** from a dead clone to real output, measured with an empty `HOME`
 and `PATH=/usr/bin:/bin` — no `uv`, no virtualenv, no caches. Most of that is
 fetching a pinned `uv`. On a machine with no Python 3.12 at all, uv downloads
-an interpreter too and it is closer to a minute.
+an interpreter too, which will be slower again — this box has 3.12, so I have
+no measurement of that case and have not put a number on it.
 
 `make run` does two runs a day apart, because one run of a change report has
 nothing to report:
@@ -75,11 +76,13 @@ make demo              # regenerate the clip above, headless
 ```
 
 `make demo` is the slow one, because it renders a real browser and has to
-download a headless Chromium to do it. Measured on this machine: **31 seconds**
-to re-record once the toolchain is there, and the first run adds a ~170 MB
-browser download on top of that — call it a minute and a half on a warm
-connection. It leaves **784 MB** in `demo/.toolchain/`, all of it inside the
-repo and none of it installed system-wide. `make clean` removes it.
+download a headless Chromium to do it. Measured on this machine: **about 27
+seconds** to re-record once the toolchain is there — 27.4, 27.6 and 27.3 s over
+three runs. The first run adds the Chromium download on top of that, which I
+have not timed, so the wall clock for a first `make demo` is the one number
+here I cannot give you. It leaves **760 MB** in `demo/.toolchain/` — 549 MB of
+that the unpacked Chromium — all of it inside the repo and none of it installed
+system-wide. `make clean` removes it.
 
 If you would rather use your own tooling:
 
