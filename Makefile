@@ -1,7 +1,7 @@
 PY := .venv/bin/python
 STATE := state/catalog.json
 
-.PHONY: help setup run watch test fixtures demo demo-terminal schedule-check clean
+.PHONY: help setup run watch test fixtures demo demo-terminal schedule-check clean timings
 
 help:
 	@echo "make run            two runs a day apart, so the change report has something in it"
@@ -11,6 +11,7 @@ help:
 	@echo "make fixtures       regenerate the synthetic storefront"
 	@echo "make demo           regenerate demo/out/demo.gif with Playwright, headless"
 	@echo "make demo-terminal  the same story recorded with VHS instead"
+	@echo "make timings        re-measure the README wall clocks and diff them"
 
 setup:
 	@./demo/setup.sh
@@ -48,3 +49,8 @@ demo-terminal:
 clean:
 	rm -rf out logs state demo/out demo/out-terminal demo/.toolchain demo/.scratch .pytest_cache
 	find . -name __pycache__ -type d -prune -exec rm -rf {} +
+
+# Re-measure the README numbers no test can guard, and print the diff against
+# what it currently says. By hand, before a push: never in CI.
+timings:
+	@python3 tools/timings.py $(ARGS)
