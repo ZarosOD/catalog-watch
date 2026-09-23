@@ -326,6 +326,7 @@ make test          # or: .venv/bin/python -m pytest -q
 | `test_demo_fetch.py` | The download retry ladder in `demo/lib/fetch.sh` — the recording toolchain's downloads, not the scraper's — driven against a `curl` shim that fails a scripted number of times. |
 | `test_demo_outputs.py` | That the recording writes both the GIF and the MP4, including the case where `vhs` exits `0` having skipped one of them. |
 | `test_demo_sheet.py` | The shared spreadsheet renderer in `demo/lib/sheet.py`, which draws the clip's closing frame: that it refuses to render a file that is not on disk, that a filtered view keeps the source file's own column letters and row numbers, and that the command on screen is the one whose output is under it. |
+| `test_readme_clip.py` | The clip-length sentence in this README, read back off the committed `demo/out/demo.gif` and `demo/out/demo.mp4`. It parses the numbers out of README.md rather than restating them, so a re-record that moves the clip and leaves the prose behind fails here. The duration readers are stdlib, because a dead clone has no `ffprobe`, and they are pinned against hand-built mp4 and gif headers. |
 
 ## Recording the demo
 
@@ -333,6 +334,13 @@ make test          # or: .venv/bin/python -m pytest -q
 headless, on the synthetic fixture. It is a reusable pipeline with two recipes —
 a browser one and a terminal one — documented in
 [demo/README.md](demo/README.md).
+
+The clip is 21 s against a 35 s budget that `record.sh` enforces by reading the
+encoded file, so the guard is real rather than a note about not shipping a
+two-minute GIF. That sentence is itself checked:
+`tests/test_readme_clip.py` parses the two numbers out of this file and reads
+the duration back off the committed `demo/out/demo.gif` and `demo/out/demo.mp4`,
+so a re-record that moves the clip and leaves the README behind fails the suite.
 
 **The clip ends on the real file.** After the morning run, the scene opens
 `out/products.xlsx` — the workbook that run just wrote — and reads it off disk.
