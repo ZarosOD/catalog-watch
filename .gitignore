@@ -12,9 +12,10 @@ __pycache__/
 /state/
 /logs/
 
-# Fetched toolchains and demo scratch. demo/out/ and demo/out-terminal/ are
-# committed on purpose: the clips are the deliverable.
+# Fetched toolchains and demo scratch. demo/out/ is committed on purpose: the
+# clip is the deliverable. demo/out-terminal/ is the VHS sibling's output and
+# is not committed — regenerate it with `make demo-terminal`.
 demo/.toolchain/
 demo/.scratch/
 demo/out/raw/
-demo/out-terminal/raw/
+demo/out-terminal/

@@ -3,7 +3,7 @@
 One command regenerates a clip from scratch, headless, from a clean checkout:
 
 ```bash
-./demo/record.sh              # this piece: Playwright, a real browser page
+./demo/record.sh              # this piece: Playwright, a rendered page
 make demo-terminal            # the same story recorded with VHS instead
 ```
 
@@ -48,14 +48,60 @@ Both were copied in so the shared half is one version across every piece that
 carries it — a shared file that differs between repos is three files wearing
 the same name.
 
+## The spreadsheet renderer, `lib/sheet.py`
+
+All four pieces end their clip on the file the run just wrote, open in a
+spreadsheet grid. That is one job, so it is one file — shared, byte-identical
+everywhere, and policed by `tools/demo_lib_drift.py` like the rest of `lib/`.
+What stays per-piece is `scene.py`: which files this piece opens, which of its
+columns are worth showing, and what the narration says.
+
+**It cannot render a table it was handed.** The only way in is
+`read_table(path)` or `read_dir(path)`, both of which open something real and
+raise if it is not there. `View` cannot be built without a `Table` and `Table`
+cannot be built without a file on disk. That is deliberate: a terminal ASCII
+table cannot be told apart from a mock-up, and a renderer that reads a fixture
+reproduces exactly that flaw with better borders.
+
+**A filtered view says it is filtered.** Showing six of twenty-one columns is
+fine and is normal — nobody wants twenty-one on screen. So the columns keep the
+letter they have in the source file (picking columns 1, 2, 4 and 9 renders as
+A, B, D, I, which is what hiding columns in Excel looks like), rows keep their
+real sheet row number so a filtered set reads 2, 3, 4, 287, 288 with the join
+marked, and the footer says how many of each are on screen out of how many are
+in the file.
+
+**The number format is honoured.** A price cell holding 1299 with a `0.00`
+format reads "1299.00" in Excel and "1299" if you only look at the value —
+while the CSV beside it says "1299.00". Rendering the value alone would put a
+difference on screen that does not exist in the file.
+
+**The command and its output come from one call.** `run_command` runs the
+argv, keeps the captured stdout with it, and `terminal_html` renders that one
+object — so the line on screen cannot drift from the output underneath it. The
+interpreter path is the one thing rewritten, to `python`, because
+`/home/somebody/repo/.venv/bin/python3.12` is machine-specific noise and not
+the thing being demonstrated.
+
+Covered by `tests/test_demo_sheet.py`, which is byte-identical in all four
+repos for the same reason the module is.
+
 ## Which recipe
+
+**All four pieces use Playwright today**, and the reason is the grid
+above: a spreadsheet frame is a rendered page, and the terminal recipe
+cannot draw one. This piece records a browser because its input really is a web
+page: the storefront is the BEFORE, and the clip closes on `out/products.xlsx`
+in the grid. The VHS sibling is still live in every
+repo — `make demo-terminal` — because the choice is the point of
+`demo/recipe`, and a recipe nobody can run is a recipe that has rotted.
 
 | | **VHS** (`lib/vhs.sh`) | **Playwright** (`lib/playwright.sh`) |
 | --- | --- | --- |
 | Records | A terminal session | A real browser page |
 | You write | `demo.tape` — a script of keystrokes and pauses | `scene.py` — Playwright code |
-| Good at | Crisp text at small sizes; tiny files (this repo: 343 KB) | Anything with a UI, a page, or a before/after to point at |
-| Bad at | Anything that is not text in a terminal | Files are about 7× bigger (this repo: 2.3 MB) |
+| Good at | Crisp text at small sizes; smaller files | Anything with a UI, a page, or a before/after to point at |
+| Bad at | Anything that is not text in a terminal | Files are several times bigger |
 | Timing | Declarative `Sleep 3s` | `page.wait_for_timeout(3000)` — same idea, in Python |
 | Output | GIF **and** MP4, from one recording | GIF **and** MP4, from one recording |
 
@@ -66,18 +112,6 @@ uploaded GIF as a single static first frame — a GIF there is a screenshot with
 extra bytes. Neither is generated from the other; they are two encodes of the
 same captured frames, so they cannot drift apart.
 
-**Pick VHS when the deliverable is a command.** A client watching a CLI wants
-to read the output, and VHS renders text natively rather than photographing it.
-
-**Pick Playwright when the deliverable is something you look at.** This piece
-qualifies: the story is "the storefront changed overnight and you did not have
-to notice", which needs the storefront on screen. A terminal recording of the
-same tool is still useful — it is `make demo-terminal` here — but it shows the
-answer without showing the question.
-
-Both are live in this repo precisely so the next piece can choose rather than
-reinvent. Copy `demo/` from here, not from the first piece.
-
 ## Copying this into another piece
 
 Copy the whole `demo/` folder. Then change **these files and nothing else**:
@@ -86,8 +120,8 @@ Copy the whole `demo/` folder. Then change **these files and nothing else**:
 | --- | --- |
 | `recipe` | One word: `playwright` or `vhs`. |
 | `setup.sh` | Two lines in practice: the import names you pass `ensure_venv`, and whatever the piece needs regenerated before recording. A non-Python piece replaces the `ensure_venv` call with its own build. Anything it deletes belongs under `--fresh` unless the piece itself owns it — every `make` target runs this file, so a wipe outside that flag is a wipe of the user's work. |
-| `scene.py` | The Playwright recipe's script. Delete it if you chose VHS. |
-| `demo.tape` | The VHS recipe's tape. Delete it if you chose Playwright. |
+| `scene.py` | The Playwright recipe's script: which files to open, which columns to show, what the narration says. The rendering is `lib/sheet.py` and is not yours to edit. |
+| `demo.tape` | The VHS recipe's tape. Delete it if you only want the browser one. |
 
 Leave `record.sh` and everything in `lib/` alone. If you find yourself editing
 one of those to make your piece work, the split is wrong — fix the split, do
@@ -163,7 +197,7 @@ root, versions pinned except where noted.
 | `lib/python-venv.sh` | nothing directly | — | The venv ladder. Calls `lib/uv.sh` when the machine has no uv. |
 | `lib/ffmpeg.sh` | ffmpeg, ffprobe | 7.0.2 | Checksum-verified against a constant in the file, so a swapped tarball fails instead of quietly changing what the clip looks like. A system `ffmpeg` is used only if it reports the same version. Used by both recipes. |
 | `lib/vhs.sh` | vhs, ttyd | 0.10.0, 1.7.7 | **vhs deliberately**: 0.12.x starts Chromium, captures every frame, then exits 0 having written no file at all on some Linux hosts. 0.10.0 encodes reliably. |
-| `lib/playwright.sh` | the `playwright` wheel + Chromium | 1.47.0 | Playwright for *Python*, not Node: the wheel ships its own driver, so a machine with no Node can still record. |
+| `lib/playwright.sh` | the `playwright` wheel + Chromium | 1.47.0 | The recipe this piece records with. Playwright for *Python*, not Node: the wheel ships its own driver, so a machine with no Node can still regenerate the clip. |
 | `lib/chromium-libs.sh` | the shared objects Chromium links against | — | See below. |
 
 `lib/uv.sh` applies the pinning rule to the *project's* toolchain, because a
@@ -206,17 +240,31 @@ is how to verify the from-nothing path still works.
 - **The clip is a GIF and an MP4 of the same recording.** The GIF is for
   embedding in a README, the MP4 for anywhere that will play video — it is
   about a tenth the size at better quality.
-- **Re-recording reproduces the committed clip closely, not exactly.** Over six
-  recordings: the browser GIF stays within 4% (0.3% from a clean clone), the
-  browser MP4 within 8%, the terminal clip within 1%. VHS is the steady one
-  because it renders text to frames itself. The Playwright recipe records a
-  live browser, so page-load timing decides which frames land either side of a
-  cut, and the MP4 moves more than the GIF because nothing quantises it — it
-  spends real bits on whatever detail that capture happened to carry. Sizes to
-  expect: browser 2.3 MB GIF / 331 KB MP4, terminal 343 KB / 263 KB. Much
-  outside that is worth a look rather than a shrug; a 37% jump is what sent us
-  looking and found the VP8 noise that `GIF_QUANT` in `lib/playwright.sh` now
-  removes.
+- **Re-recording reproduces the committed clip closely, not exactly.** VHS is
+  the steady one because it renders text to frames itself; the terminal clip
+  holds within 1%. The Playwright recipe records a live browser, so page-load
+  timing decides which frames land either side of a cut, and the MP4 moves more
+  than the GIF because nothing quantises it — it spends real bits on whatever
+  detail that capture happened to carry. Sizes to expect **for this piece**:
+  browser 2.3 MB GIF / 296 KB MP4, terminal 352 KB / 270 KB. The browser pair
+  is re-measured as of THE-261, which took this clip from 24.1s to 21.1s and
+  left the MP4 within 300 bytes of where it was: a shorter clip whose middle
+  beat is now a dense 14-line panel rather than mostly empty dark, so the bits
+  it stopped spending on length it spends on detail. The terminal pair did not
+  move, because the VHS tape does not go through `lib/sheet.py`.
+- ⚠️ **The spreadsheet scene's size band is wider than the old one's, and it is
+  not yet characterised.** The pre-THE-255 browser scene held within 4% over six
+  recordings. Two recordings of the BEFORE/command/AFTER scene, same machine,
+  same commit, measured 2026-09-23: `catalog-watch` +1.3% GIF / +3.9% MP4 and
+  `pdf-to-csv` −2.7% / −0.2%, but `feed-clean` **+46.7% / +21.4%** and
+  `inbox-filer` **+53.0% / +35.6%**. What it is *not*: frame noise. Both
+  recordings carry the same frame count ±1, and a single frame lifted from the
+  final hold re-encodes to within 3% either way — the held pixels are clean, so
+  `GIF_QUANT` is still doing its job. The bytes are in the inter-frame deltas:
+  a timing shift of one frame changes how many frames land mid-transition, and
+  a GIF pays full price for each. Two samples is not a band, so **do not read
+  the four numbers above as a tolerance for the three pieces that are not
+  catalog-watch** — re-measure before treating any jump as a defect.
 - **The report beat shows a live timestamp.** `changes.txt` prints the time of
   the run it compared against, so those characters differ on every recording.
   It costs nothing in file size and it is honest about what the tool writes, but

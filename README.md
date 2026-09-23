@@ -74,11 +74,12 @@ make schedule-check    # prove the cron wrapper works, under cron's environment
 make demo              # regenerate the clip above, headless
 ```
 
-`make demo` is slower, because it downloads a headless Chromium. The real
-numbers, same clean-machine conditions: **about 80 seconds** from nothing — no
-Playwright, no browser, no ffmpeg — and **41 seconds** to re-record once the
-toolchain is there. It leaves about 750 MB in `demo/.toolchain/`, all of it
-inside the repo and none of it installed system-wide. `make clean` removes it.
+`make demo` is the slow one, because it renders a real browser and has to
+download a headless Chromium to do it. Measured on this machine: **31 seconds**
+to re-record once the toolchain is there, and the first run adds a ~170 MB
+browser download on top of that — call it a minute and a half on a warm
+connection. It leaves **784 MB** in `demo/.toolchain/`, all of it inside the
+repo and none of it installed system-wide. `make clean` removes it.
 
 If you would rather use your own tooling:
 
@@ -307,7 +308,7 @@ make fixtures     # regenerate them
 make test          # or: .venv/bin/python -m pytest -q
 ```
 
-137 tests.
+206 tests.
 
 | File | Covers |
 | --- | --- |
@@ -321,6 +322,7 @@ make test          # or: .venv/bin/python -m pytest -q
 | `test_demo_preview.py` | The table renderer in `demo/lib/`: column picking, row caps, the `…` truncation, and erroring on a column the file does not have. |
 | `test_demo_fetch.py` | The download retry ladder in `demo/lib/fetch.sh` — the recording toolchain's downloads, not the scraper's — driven against a `curl` shim that fails a scripted number of times. |
 | `test_demo_outputs.py` | That the recording writes both the GIF and the MP4, including the case where `vhs` exits `0` having skipped one of them. |
+| `test_demo_sheet.py` | The shared spreadsheet renderer in `demo/lib/sheet.py`, which draws the clip's closing frame: that it refuses to render a file that is not on disk, that a filtered view keeps the source file's own column letters and row numbers, and that the command on screen is the one whose output is under it. |
 
 ## Recording the demo
 
@@ -328,6 +330,12 @@ make test          # or: .venv/bin/python -m pytest -q
 headless, on the synthetic fixture. It is a reusable pipeline with two recipes —
 a browser one and a terminal one — documented in
 [demo/README.md](demo/README.md).
+
+**The clip ends on the real file.** After the morning run, the scene opens
+`out/products.xlsx` — the workbook that run just wrote — and reads it off disk.
+The marks drawn on the storefront come from `out/products.csv` the same way.
+Neither is a fixture, and if the run does not write its output the recording
+fails rather than showing you a picture of what it usually writes.
 
 ## Layout
 

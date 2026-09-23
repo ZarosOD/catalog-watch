@@ -1,16 +1,24 @@
 #!/usr/bin/env python3
 """The recorded scene. EDIT THIS FILE for a new piece — it is the Playwright
-equivalent of a VHS tape.
+equivalent of a VHS tape. The grid frames are not built here: demo/lib/sheet.py
+is shared by all four pieces and renders every spreadsheet frame in the
+portfolio.
 
-Four beats, about 29 seconds:
+Five beats, about 21 seconds, in the one shape all four clips use. This piece
+is the one whose input really is a web page, so its BEFORE is the storefront
+rather than a grid — the same claim the others make (this is the real input,
+read at record time), about a different kind of input:
 
-  1. The storefront as it was yesterday morning.
-  2. The same page today. Deliberately no annotation: the point is that the
-     changes are not obvious by eye.
-  3. The same page with the changes marked. The marks are driven by
-     out/products.csv, which the tool wrote seconds earlier — nothing here
-     knows what changed except by reading the tool's own output.
-  4. out/changes.txt, the file the scheduled run leaves behind.
+  1. BEFORE   the storefront as it was yesterday morning.
+  2. BEFORE   the same page today. Deliberately no annotation: the point is
+              that the changes are not obvious by eye.
+  3. COMMAND  the morning run, and the real stdout it printed.
+  4. AFTER    the same page with the changes marked. The marks are driven by
+              out/products.csv, which the run above wrote seconds earlier —
+              nothing here knows what changed except by reading the tool's own
+              output.
+  5. AFTER    out/products.xlsx in the grid, Changes sheet: the file the
+              scheduled run leaves behind, opened.
 
 Everything is served from fixtures/ on localhost. No live site is contacted and
 no real product, vendor or client data appears on screen.
@@ -20,52 +28,64 @@ from __future__ import annotations
 
 import argparse
 import csv
-import subprocess
 import sys
-from html import escape
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
+sys.path.insert(0, str(REPO / "demo" / "lib"))
+
+import sheet  # noqa: E402
 
 from catalog_watch.serve import serve_directory  # noqa: E402
 
-VIEWPORT = {"width": 1024, "height": 800}
+# The storefront beats share the BEFORE budget; the marked page and the grid
+# share the AFTER one. This clip's timings are the shared ones divided, not a
+# second set of numbers.
+HOLD_YESTERDAY = sheet.HOLD_BEFORE / 2
+HOLD_TODAY = sheet.HOLD_BEFORE / 2
+HOLD_MARKED = sheet.HOLD_AFTER * 0.45
+HOLD_GRID = sheet.HOLD_AFTER * 0.55
 
-# Seconds per beat. Keep the total under the 35s record.sh enforces.
-HOLD_YESTERDAY = 6.5
-HOLD_TODAY = 4.5
-HOLD_MARKED = 6.0
-HOLD_REPORT = 11.0
+CHANGE_COLUMNS = ["kind", "sku", "name", "before", "after", "detail"]
+WIDTHS = {"name": 2.0, "detail": 2.4, "kind": 0.9, "sku": 0.9}
 
-BANNER_CSS = """
-  body { padding-top: 56px !important; }
-  #cw-banner {
+BANNER_CSS = f"""
+  body {{ padding-top: 56px !important; }}
+  #cw-banner {{
     position: fixed; top: 0; left: 0; right: 0; height: 56px; z-index: 9999;
     display: flex; align-items: center; gap: 14px; padding: 0 26px;
-    background: #0f1720; color: #fff; font: 600 19px/1 -apple-system,
-      "Segoe UI", Roboto, "DejaVu Sans", Arial, sans-serif;
+    background: #0f1720; color: #fff; font: 600 19px/1 {sheet.SANS};
     box-shadow: 0 2px 10px rgba(0,0,0,.25);
-  }
-  #cw-banner .cw-when { color: #7fd1a6; font-variant-numeric: tabular-nums; }
-  #cw-banner .cw-what { color: #e8eef5; font-weight: 500; }
-  .cw-mark { outline: 3px solid #d9534f; outline-offset: 2px; position: relative; }
-  .cw-mark.cw-down { outline-color: #1a7f4b; }
-  .cw-badge {
+  }}
+  #cw-banner .cw-step {{
+    font-size: 12.5px; font-weight: 700; letter-spacing: 1.6px; color: #0f1720;
+    background: #cdd3e4; border-radius: 4px; padding: 4px 9px;
+  }}
+  #cw-banner .cw-step.after {{ background: #7fd1a6; }}
+  #cw-banner .cw-when {{ color: #7fd1a6; font-variant-numeric: tabular-nums; }}
+  #cw-banner .cw-what {{ color: #e8eef5; font-weight: 500; }}
+  .cw-mark {{ outline: 3px solid #d9534f; outline-offset: 2px; position: relative; }}
+  .cw-mark.cw-down {{ outline-color: #1a7f4b; }}
+  .cw-badge {{
     position: absolute; top: -12px; right: 10px; z-index: 20;
     background: #d9534f; color: #fff; border-radius: 11px;
     padding: 3px 11px; font-size: 12px; font-weight: 700; letter-spacing: .3px;
     white-space: nowrap;
-  }
-  .cw-mark.cw-down .cw-badge { background: #1a7f4b; }
+  }}
+  .cw-mark.cw-down .cw-badge {{ background: #1a7f4b; }}
 """
 
 BANNER_JS = """
-([when, what]) => {
+([step, when, what]) => {
   document.getElementById('cw-banner')?.remove();
   const bar = document.createElement('div');
   bar.id = 'cw-banner';
-  bar.innerHTML = `<span class="cw-when"></span><span class="cw-what"></span>`;
+  bar.innerHTML = `<span class="cw-step"></span><span class="cw-when"></span>`
+                + `<span class="cw-what"></span>`;
+  const tag = bar.querySelector('.cw-step');
+  tag.textContent = step;
+  if (step === 'AFTER') tag.classList.add('after');
   bar.querySelector('.cw-when').textContent = when;
   bar.querySelector('.cw-what').textContent = what;
   document.body.prepend(bar);
@@ -90,127 +110,94 @@ MARK_JS = """
 }
 """
 
-REPORT_PAGE = """<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <title>out/changes.txt</title>
-  <style>
-    body {{
-      margin: 0; background: #0f1720; color: #e8eef5; padding: 26px 40px;
-      font: 15px/1.5 -apple-system, "Segoe UI", Roboto, "DejaVu Sans", Arial, sans-serif;
-    }}
-    h1 {{ font-size: 17px; margin: 0 0 4px; color: #7fd1a6; }}
-    p.sub {{ margin: 0 0 18px; color: #8aa0b4; font-size: 14px; }}
-    pre {{
-      margin: 0; background: #16202b; border: 1px solid #24313f; border-radius: 8px;
-      padding: 20px 24px; font: 13.5px/1.7 ui-monospace, "DejaVu Sans Mono",
-      "SF Mono", Menlo, Consolas, monospace; color: #dfe8f1;
-      white-space: pre; overflow: hidden;
-    }}
-    .files {{ margin-top: 16px; color: #8aa0b4; font-size: 13px; }}
-    .files code {{ color: #e8eef5; }}
-  </style>
-</head>
-<body>
-  <h1>out/changes.txt</h1>
-  <p class="sub">written by the 06:00 run, alongside products.csv and products.xlsx</p>
-  <pre>{report}</pre>
-  <p class="files">Same run also wrote <code>out/products.csv</code> and
-     <code>out/products.xlsx</code> (Changes sheet first).</p>
-</body>
-</html>
-"""
+
+def here(path: Path) -> str:
+    """A path as the argv on screen should carry it: relative to the repo.
+
+    Both runs below are `cwd=REPO`, so the relative form names the same file.
+    The absolute one names *this box* — `/home/<someone>/…` is a username and a
+    directory layout, on an asset that goes to clients, and at 185 characters it
+    ran off the right edge of the terminal panel as well (THE-261). Derived from
+    the same Path the scene reads afterwards rather than written out a second
+    time, so what runs and what is read cannot drift apart."""
+    return str(path.relative_to(REPO))
 
 
-def run_the_tool(scratch: Path) -> tuple[dict[str, str], str]:
-    """Two real runs of watch.py, a day apart. Returns the marks to draw and
-    the report text to show — both read back out of what the tool wrote."""
-    out = scratch / "out"
-    state = scratch / "state.json"
+def baseline(out: Path, state: Path) -> None:
+    """Yesterday's run, off camera. A change report needs something to compare
+    against, and the first run of anything has nothing."""
+    sheet.run_command(
+        [sys.executable, "watch.py", "--serve", "fixtures/site",
+         "--state", here(state), "--out", here(out), "--quiet"],
+        cwd=REPO,
+    )
 
-    for day in ("site", "site-day2"):
-        subprocess.run(
-            [
-                sys.executable,
-                "watch.py",
-                "--serve",
-                f"fixtures/{day}",
-                "--state",
-                str(state),
-                "--out",
-                str(out),
-                "--quiet",
-            ],
-            cwd=REPO,
-            check=True,
-        )
 
-    marks: dict[str, str] = {}
+def marks_from_output(out: Path) -> dict[str, str]:
+    """What to draw on the page, read out of the CSV the tool just wrote."""
+    found: dict[str, str] = {}
     with (out / "products.csv").open(encoding="utf-8") as handle:
         for row in csv.DictReader(handle):
             if row["change"]:
-                marks[row["sku"]] = row["change"]
+                found[row["sku"]] = row["change"]
+    return found
 
-    return marks, (out / "changes.txt").read_text(encoding="utf-8")
 
-
-def beat(page, when: str, what: str, hold: float) -> None:
+def banner(page, step: str, when: str, what: str, hold: float) -> None:
     page.add_style_tag(content=BANNER_CSS)
-    page.evaluate(BANNER_JS, [when, what])
+    page.evaluate(BANNER_JS, [step, when, what])
     page.wait_for_timeout(hold * 1000)
 
 
 def record(video_dir: Path) -> Path:
-    from playwright.sync_api import sync_playwright
-
     scratch = REPO / "demo" / ".scratch"
     scratch.mkdir(parents=True, exist_ok=True)
-    marks, report_text = run_the_tool(scratch)
+    out, state = REPO / "out", scratch / "state.json"
 
-    report_dir = scratch / "report"
-    report_dir.mkdir(exist_ok=True)
-    (report_dir / "index.html").write_text(
-        REPORT_PAGE.format(report=escape(report_text.rstrip())), encoding="utf-8"
-    )
+    baseline(out, state)
 
     with (
         serve_directory(REPO / "fixtures" / "site") as yesterday,
         serve_directory(REPO / "fixtures" / "site-day2") as today,
-        serve_directory(report_dir) as report_url,
-        sync_playwright() as playwright,
+        sheet.Scene(video_dir) as scene,
     ):
-        browser = playwright.chromium.launch()
-        context = browser.new_context(
-            viewport=VIEWPORT,
-            record_video_dir=str(video_dir),
-            record_video_size=VIEWPORT,
-            device_scale_factor=1,
+        scene.goto(yesterday, 0)
+        banner(scene.page, "BEFORE", "Mon 06:00", "yesterday's catalogue",
+               HOLD_YESTERDAY)
+
+        scene.goto(today, 0)
+        banner(scene.page, "BEFORE", "Tue 06:00",
+               "the same page this morning. Spot the difference?", HOLD_TODAY)
+
+        # This morning's run, on camera. The marks and the grid below both come
+        # out of what it writes, so neither can show a change it did not find.
+        command = sheet.run_command(
+            [sys.executable, "watch.py", "--serve", "fixtures/site-day2",
+             "--state", here(state), "--out", here(out), "--report", "--quiet"],
+            cwd=REPO,
         )
-        page = context.new_page()
-
-        page.goto(yesterday, wait_until="networkidle")
-        beat(page, "Mon 06:00", "yesterday's catalogue", HOLD_YESTERDAY)
-
-        page.goto(today, wait_until="networkidle")
-        beat(page, "Tue 06:00", "the same page this morning. Spot the difference?", HOLD_TODAY)
-
-        page.evaluate(MARK_JS, marks)
-        beat(
-            page,
-            "Tue 06:00",
-            f"catalog-watch found {len(marks)} changes, unprompted",
-            HOLD_MARKED,
+        scene.show(
+            sheet.terminal_html(command, said="one command, every morning, on a timer"),
+            sheet.HOLD_COMMAND,
         )
 
-        page.goto(report_url, wait_until="networkidle")
-        page.wait_for_timeout(HOLD_REPORT * 1000)
+        marks = marks_from_output(out)
+        scene.goto(today, 0)
+        scene.page.evaluate(MARK_JS, marks)
+        banner(scene.page, "AFTER", "Tue 06:00",
+               f"{len(marks)} changes, found unprompted", HOLD_MARKED)
 
-        path = Path(page.video.path())
-        context.close()
-        browser.close()
+        changes = sheet.read_table(out / "products.xlsx", "Changes", base=REPO)
+        scene.show(
+            sheet.grid_html(
+                sheet.view(changes, CHANGE_COLUMNS, widths=WIDTHS),
+                step="AFTER",
+                said="out/products.xlsx — the file the 06:00 run leaves behind",
+            ),
+            HOLD_GRID,
+        )
 
-    return path
+    return scene.video_path
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -219,8 +206,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     args.video_dir.mkdir(parents=True, exist_ok=True)
-    path = record(args.video_dir)
-    print(path)
+    print(record(args.video_dir))
     return 0
 
 
