@@ -273,9 +273,18 @@ is how to verify the from-nothing path still works.
   catalog-watch** — re-measure before treating any jump as a defect. A third
   sample, 2026-09-23 under THE-267: `inbox-filer` re-recorded from the *same*
   commit with the lib byte-identical came out **+7.9% GIF**, and its MP4
-  duration landed 17.88s against a committed 17.92s. Nothing had changed. If
-  you are writing a gate, gate on dimensions and on the final frame, not on a
-  byte count or a duration equality — neither is reproducible here.
+  duration landed 17.88s against a committed 17.92s. Nothing had changed — the
+  control was the committed `playwright.sh` restored (md5 back to `cec0b808`)
+  into a scratch output dir.
+  - 📏 **Standing rule, Rook 2026-09-23 on THE-267: a demo render gate asserts
+    dimensions, the final frame, and `HEAD == origin/main`. Never output-byte
+    equality, never duration equality.** Those two were in THE-267's own gate
+    and are struck from it; the three samples above are why. An equality gate
+    on this encoder is one draw from a wide distribution, so the only way to
+    make it green is to re-roll recordings until a lucky one lands — a pass
+    that proves nothing except that you rolled enough dice. If you want a
+    size guard at all, make it a band you measured, and say how many samples
+    it came from.
 - **The report beat shows a live timestamp.** `changes.txt` prints the time of
   the run it compared against, so those characters differ on every recording.
   It costs nothing in file size and it is honest about what the tool writes, but
