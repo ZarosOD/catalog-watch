@@ -311,7 +311,7 @@ make fixtures     # regenerate them
 make test          # or: .venv/bin/python -m pytest -q
 ```
 
-231 tests, two of which skip in a dead clone — the `ffprobe` cross-check in
+266 tests, two of which skip in a dead clone — the `ffprobe` cross-check in
 `tests/test_readme_clip.py`, which needs a toolchain `make demo` downloads.
 They are the suite's only skips and they are a cross-check, not a guard.
 
@@ -329,6 +329,23 @@ They are the suite's only skips and they are a cross-check, not a guard.
 | `test_demo_outputs.py` | That the recording writes both the GIF and the MP4, including the case where `vhs` exits `0` having skipped one of them. |
 | `test_demo_sheet.py` | The shared spreadsheet renderer in `demo/lib/sheet.py`, which draws the clip's closing frame: that it refuses to render a file that is not on disk, that a filtered view keeps the source file's own column letters and row numbers, and that the command on screen is the one whose output is under it. |
 | `test_readme_clip.py` | The clip-length sentence in this README, read back off the committed `demo/out/demo.gif` and `demo/out/demo.mp4`. It parses the numbers out of README.md rather than restating them, so a re-record that moves the clip and leaves the prose behind fails here. The duration readers are stdlib, because a dead clone has no `ffprobe`, and they are pinned against hand-built mp4 and gif headers. |
+| `test_readme_counts.py` | The test counts in this README, read back off `pytest --collect-only`: the total, the dead-clone skip figure (off the ffprobe cross-check's own parametrised count, not a number typed twice) and any per-file split quoted below. A count is deterministic, so it is guarded; the wall clocks are not, and `make timings` covers those. |
+
+### The numbers a test cannot guard
+
+```bash
+make timings          # measure them, and diff them against this file
+make timings ARGS="--list"
+```
+
+A test count is deterministic, so it is guarded above. The wall clocks and disk
+sizes in this file are not: they move with the machine, the network and the
+pinned versions. Asserting them in the suite would buy a flaky one rather than
+a guard, so they get `tools/timings.py` instead — a target run by hand before a
+push, never in CI, which re-measures each of them, prints the sentence in this
+README that states it, and says whether the two still agree. It exits non-zero
+when they do not, so `make` reports `Error 1`; that is the verdict arriving, not
+a crash.
 
 ## Recording the demo
 
