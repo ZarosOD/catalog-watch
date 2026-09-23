@@ -237,21 +237,24 @@ is how to verify the from-nothing path still works.
   `demo/.toolchain/browsers`, VHS's into `~/.cache/rod`), so a repo that records
   both pays for both. The toolchain comes to roughly 750 MB; `make clean`
   removes it.
-- **The clip is a GIF and an MP4 of the same recording.** The GIF is for
-  embedding in a README, the MP4 for anywhere that will play video — it is
-  about a tenth the size at better quality.
+- **The clip is a GIF and an MP4 of the same recording, at different sizes.**
+  The GIF is for embedding in a README, so it is scaled to `GIF_WIDTH` (1000)
+  to keep the page loading; the MP4 is for anywhere that will play video, and
+  since THE-267 it keeps the full 1280x720 capture — `MP4_WIDTH` is its own
+  knob now, empty by default. It is still about a fifth the size of the GIF,
+  at the higher resolution.
 - **Re-recording reproduces the committed clip closely, not exactly.** VHS is
   the steady one because it renders text to frames itself; the terminal clip
   holds within 1%. The Playwright recipe records a live browser, so page-load
   timing decides which frames land either side of a cut, and the MP4 moves more
   than the GIF because nothing quantises it — it spends real bits on whatever
   detail that capture happened to carry. Sizes to expect **for this piece**:
-  browser 2.3 MB GIF / 296 KB MP4, terminal 352 KB / 270 KB. The browser pair
-  is re-measured as of THE-261, which took this clip from 24.1s to 21.1s and
-  left the MP4 within 300 bytes of where it was: a shorter clip whose middle
-  beat is now a dense 14-line panel rather than mostly empty dark, so the bits
-  it stopped spending on length it spends on detail. The terminal pair did not
-  move, because the VHS tape does not go through `lib/sheet.py`.
+  browser 2.0 MB GIF / 435 KB MP4, terminal 352 KB / 270 KB. The browser MP4
+  is re-measured as of THE-267: it was 296 KB while it inherited `GIF_WIDTH`,
+  and 1280x720 costs about 47% more bytes for 64% more pixels. The GIF number
+  is one sample, not a target — read the next bullet before comparing against
+  it. The terminal pair did not move, because the VHS tape does not go through
+  `lib/sheet.py`.
 - ⚠️ **The spreadsheet scene's size band is wider than the old one's, and it is
   not yet characterised.** The pre-THE-255 browser scene held within 4% over six
   recordings. Two recordings of the BEFORE/command/AFTER scene, same machine,
@@ -264,7 +267,12 @@ is how to verify the from-nothing path still works.
   a timing shift of one frame changes how many frames land mid-transition, and
   a GIF pays full price for each. Two samples is not a band, so **do not read
   the four numbers above as a tolerance for the three pieces that are not
-  catalog-watch** — re-measure before treating any jump as a defect.
+  catalog-watch** — re-measure before treating any jump as a defect. A third
+  sample, 2026-09-23 under THE-267: `inbox-filer` re-recorded from the *same*
+  commit with the lib byte-identical came out **+7.9% GIF**, and its MP4
+  duration landed 17.88s against a committed 17.92s. Nothing had changed. If
+  you are writing a gate, gate on dimensions and on the final frame, not on a
+  byte count or a duration equality — neither is reproducible here.
 - **The report beat shows a live timestamp.** `changes.txt` prints the time of
   the run it compared against, so those characters differ on every recording.
   It costs nothing in file size and it is honest about what the tool writes, but
