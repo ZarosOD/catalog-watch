@@ -138,15 +138,13 @@ def test_missing_gif_also_fails(tmp_path: Path) -> None:
 
 
 def test_committed_clip_directory_holds_both_formats() -> None:
-    """The deliverables themselves, not the machinery that builds them.
+    """The deliverable itself, not the machinery that builds it.
 
-    Both clip directories are committed on purpose, so this asserts the repo a
-    client clones actually contains the portfolio covers. This repo carries two
-    because it runs both recipes: demo/out/ is the Playwright clip that `make
-    demo` writes, demo/out-terminal/ is the VHS one from `make demo-terminal`.
+    demo/out/ is committed on purpose, so this asserts the repo a client
+    clones actually contains the portfolio cover.
     """
-    for rel in ("demo/out", "demo/out-terminal"):
-        for name in ("demo.gif", "demo.mp4"):
-            clip = REPO_ROOT / rel / name
-            assert clip.is_file(), f"{name} is missing from {rel}/"
-            assert clip.stat().st_size > 0, f"{rel}/{name} is empty"
+    out_dir = REPO_ROOT / "demo" / "out"
+    for name in ("demo.gif", "demo.mp4"):
+        clip = out_dir / name
+        assert clip.is_file(), f"{name} is missing from demo/out/"
+        assert clip.stat().st_size > 0, f"{name} is empty"
