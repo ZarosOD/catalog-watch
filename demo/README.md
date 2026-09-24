@@ -300,18 +300,33 @@ is how to verify the from-nothing path still works.
   since THE-267 it keeps the full 1280x720 capture — `MP4_WIDTH` is its own
   knob now, empty by default. It is still about a fifth the size of the GIF,
   at the higher resolution.
-- **Re-recording reproduces the committed clip closely, not exactly.** VHS is
-  the steady one because it renders text to frames itself; the terminal clip
-  holds within 1%. The Playwright recipe records a live browser, so page-load
-  timing decides which frames land either side of a cut, and the MP4 moves more
-  than the GIF because nothing quantises it — it spends real bits on whatever
-  detail that capture happened to carry. Sizes to expect **for this piece**:
-  browser 2.0 MB GIF / 435 KB MP4, terminal 352 KB / 270 KB. The browser MP4
-  is re-measured as of THE-267: it was 296 KB while it inherited `GIF_WIDTH`,
-  and 1280x720 costs about 47% more bytes for 64% more pixels. The GIF number
-  is one sample, not a target — read the next bullet before comparing against
-  it. The terminal pair did not move, because the VHS tape does not go through
-  `lib/sheet.py`.
+- **Re-recording reproduces the committed clip closely, not exactly.** The
+  Playwright recipe records a live browser, so page-load timing decides which
+  frames land either side of a cut, and the MP4 moves more than the GIF because
+  nothing quantises it — it spends real bits on whatever detail that capture
+  happened to carry. VHS renders text to frames itself, so its GIF is the
+  steadier of the two — but not its length: over these runs the tape landed
+  588, 617 and 636 frames, an 8.2% spread, against the browser's 550, 553, 554
+  and 555. Bands measured **for this piece**, on this box, at `46d431a`,
+  2026-09-24 under THE-309 — browser over **four samples** (the committed clip
+  plus three re-records), terminal over **three re-records**:
+
+  | Recipe | GIF | MP4 | MP4 duration |
+  | --- | --- | --- | --- |
+  | browser, 4 samples | 2.32–2.40 MB (3.6% wide) | 475–528 KB (11.2%) | 22.00–22.20 s |
+  | terminal, 3 samples | 343–347 KB (1.3% wide) | 235–255 KB (8.4%) | 23.5–25.4 s |
+
+  The terminal row has no committed sample to add to it: `demo/out-terminal/`
+  is gitignored, so nothing is published for a re-record to be compared
+  against. Read every figure there as what one machine produced on one day — a
+  band, with its sample count, which is the shape the standing rule below asks
+  for, not a target and not a tolerance for another piece. What it replaces
+  were single samples that had drifted out: the old browser pair (2.0 MB /
+  435 KB) sat 16–20% and 9–21% below these bands, and the old terminal pair
+  (352 KB / 270 KB) sat above them, by 1–3% and 6–15%. The browser MP4 kept
+  `GIF_WIDTH` until THE-267 and measured 296 KB then; against this band the
+  full 1280x720 costs 60–78% more bytes for 64% more pixels, which is one old
+  sample read against four new ones rather than a law.
 - ⚠️ **The spreadsheet scene's size band is wider than the old one's, and it is
   not yet characterised.** The pre-THE-255 browser scene held within 4% over six
   recordings. Two recordings of the BEFORE/command/AFTER scene, same machine,
@@ -329,7 +344,13 @@ is how to verify the from-nothing path still works.
   commit with the lib byte-identical came out **+7.9% GIF**, and its MP4
   duration landed 17.88s against a committed 17.92s. Nothing had changed — the
   control was the committed `playwright.sh` restored (md5 back to `cec0b808`)
-  into a scratch output dir.
+  into a scratch output dir. **Since THE-309 (2026-09-24) `catalog-watch` is
+  the one piece with a band rather than a pair of samples** — the table above,
+  four recordings of `46d431a`, 3.6% wide on the GIF and 11.2% on the MP4.
+  `feed-clean`, `inbox-filer` and `pdf-to-csv` still have two samples each and
+  are still uncharacterised, and the widest single move on record is
+  `inbox-filer`'s +53.0%, so a jump on one of those three is not yet evidence
+  of anything.
   - 📏 **Standing rule, Rook 2026-09-23 on THE-267: a demo render gate asserts
     dimensions, the final frame, and `HEAD == origin/main`. Never output-byte
     equality, never duration equality.** Those two were in THE-267's own gate
