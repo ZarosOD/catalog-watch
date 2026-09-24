@@ -79,10 +79,14 @@ make demo              # regenerate the clip above, headless
 `make demo` is the slow one, because it renders a real browser and has to
 download a headless Chromium to do it. Measured on this machine: **28 to 30
 seconds** to re-record once the toolchain is there — 28.1, 28.2, 28.4, 28.5,
-29.8 and 29.8 s over six runs in two passes. The first run adds the Chromium
+29.8 and 29.8 s over six runs in two passes, and 29.3 s on one run after the
+title card joined both encodes, which is inside that range: drawing the card
+and prepending 0.8 s to two encodes cost less than the spread between the six.
+The first run adds the Chromium
 download on top of that, which I have not timed, so the wall clock for a first
-`make demo` is the one number here I cannot give you. It leaves **760 MB** in
-`demo/.toolchain/` — 549 MB of that the unpacked Chromium — all of it inside
+`make demo` is the one number here I cannot give you. It leaves **762 MB** in
+`demo/.toolchain/` — 549 MB of that the unpacked Chromium, and 2 MB the
+typeface `demo/lib/fonts.sh` pins for the title card — all of it inside
 the repo and none of it installed system-wide. `make clean` removes it.
 
 If you would rather use your own tooling:
@@ -334,9 +338,13 @@ make fixtures     # regenerate them
 make test          # or: .venv/bin/python -m pytest -q
 ```
 
-272 tests, two of which skip in a dead clone — the `ffprobe` cross-check in
-`tests/test_readme_clip.py`, which needs a toolchain `make demo` downloads.
-They are the suite's only skips and they are a cross-check, not a guard.
+285 tests, four of which skip in a dead clone: the two `ffprobe` cross-checks in
+`tests/test_readme_clip.py`, and in `tests/test_demo_card.py` the comparison of
+`demo/out/poster.png` against frame 0 of the mp4 and the proof that the title
+card's typeface is the vendored one. All four want something `make demo`
+downloads, and all four are cross-checks rather than guards: the guard each one
+backs up runs anyway, over `demo/out/demo.gif` — the file this README embeds —
+which is read end to end with nothing but the standard library.
 
 | File | Covers |
 | --- | --- |
@@ -377,7 +385,7 @@ headless, on the synthetic fixture. It is a reusable pipeline with two recipes �
 a browser one and a terminal one — documented in
 [demo/README.md](demo/README.md).
 
-The clip is 21 s against a 35 s budget that `record.sh` enforces by reading the
+The clip is 22 s against a 35 s budget that `record.sh` enforces by reading the
 encoded file, so the guard is real rather than a note about not shipping a
 two-minute GIF. That sentence is itself checked:
 `tests/test_readme_clip.py` parses the two numbers out of this file and reads

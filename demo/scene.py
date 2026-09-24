@@ -22,6 +22,13 @@ read at record time), about a different kind of input:
 
 Everything is served from fixtures/ on localhost. No live site is contacted and
 no real product, vendor or client data appears on screen.
+
+Ahead of beat 1, `demo/lib/card.py` prepends a 0.8 s title card composed from
+two of the frames below — the before artifact on the left, the after one on the
+right. It is not a beat: the scene is unchanged and the card is a prepend plus
+a `demo/out/poster.png` export. The two labels and the two lines of specifics
+under them are the only part of it that belongs to this piece, and they are
+just below.
 """
 
 from __future__ import annotations
@@ -149,7 +156,17 @@ def banner(page, step: str, when: str, what: str, hold: float) -> None:
     page.wait_for_timeout(hold * 1000)
 
 
-def record(video_dir: Path) -> Path:
+# The title card's two labels. Its shape, colours and typeface are
+# demo/lib/card.py, which is shared and byte-identical in all four repos; the
+# words are here because what this piece turns its input into is a fact about
+# this piece, not about the pipeline.
+# The AFTER line counts the changes the run actually found, so the card
+# cannot claim a number the clip does not show.
+CARD_BEFORE_LABEL = "This morning's storefront"
+CARD_AFTER_LABEL = "Every change, marked"
+
+
+def record(video_dir: Path, poster: Path | None = None) -> Path:
     scratch = REPO / "demo" / ".scratch"
     scratch.mkdir(parents=True, exist_ok=True)
     out, state = REPO / "out", scratch / "state.json"
@@ -159,7 +176,7 @@ def record(video_dir: Path) -> Path:
     with (
         serve_directory(REPO / "fixtures" / "site") as yesterday,
         serve_directory(REPO / "fixtures" / "site-day2") as today,
-        sheet.Scene(video_dir) as scene,
+        sheet.Scene(video_dir, poster=poster) as scene,
     ):
         scene.goto(yesterday, 0)
         banner(scene.page, "BEFORE", "Mon 06:00", "yesterday's catalogue",
@@ -168,6 +185,15 @@ def record(video_dir: Path) -> Path:
         scene.goto(today, 0)
         banner(scene.page, "BEFORE", "Tue 06:00",
                "the same page this morning. Spot the difference?", HOLD_TODAY)
+        # selector=None: this piece's frame is a served page, not one of
+        # sheet.py's grids, so the panel is the whole viewport. The card's two
+        # halves are then the same page before and after marking, which is
+        # what this piece is for.
+        scene.panel(
+            "before", CARD_BEFORE_LABEL,
+            "identical to yesterday by eye | prices, stock and names all move quietly",
+            selector=None,
+        )
 
         # This morning's run, on camera. The marks and the grid below both come
         # out of what it writes, so neither can show a change it did not find.
@@ -186,6 +212,11 @@ def record(video_dir: Path) -> Path:
         scene.page.evaluate(MARK_JS, marks)
         banner(scene.page, "AFTER", "Tue 06:00",
                f"{len(marks)} changes, found unprompted", HOLD_MARKED)
+        scene.panel(
+            "after", CARD_AFTER_LABEL,
+            f"{len(marks)} found unprompted | logged to products.xlsx, Changes sheet",
+            selector=None,
+        )
 
         changes = sheet.read_table(out / "products.xlsx", "Changes", base=REPO)
         scene.show(
@@ -203,10 +234,12 @@ def record(video_dir: Path) -> Path:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--video-dir", required=True, type=Path)
+    parser.add_argument("--poster", type=Path,
+                        help="write the title card here as PNG (demo/lib/card.py)")
     args = parser.parse_args(argv)
 
     args.video_dir.mkdir(parents=True, exist_ok=True)
-    print(record(args.video_dir))
+    print(record(args.video_dir, args.poster))
     return 0
 
 
