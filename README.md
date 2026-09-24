@@ -50,9 +50,9 @@ git clone <this repo> && cd catalog-watch
 make run
 ```
 
-**9 seconds** from a dead clone to real output, measured with an empty `HOME`
-and `PATH=/usr/bin:/bin` — no `uv`, no virtualenv, no caches. Most of that is
-fetching a pinned `uv`. On a machine with no Python 3.12 at all, uv downloads
+**About 10 seconds** from a dead clone to real output — 9.4, 9.6 and 10.2 s over
+three clones, measured with an empty `HOME` and `PATH=/usr/bin:/bin`: no `uv`,
+no virtualenv, no caches. Most of that is fetching a pinned `uv`. On a machine with no Python 3.12 at all, uv downloads
 an interpreter too, which will be slower again — this box has 3.12, so I have
 no measurement of that case and have not put a number on it.
 
@@ -76,8 +76,8 @@ make demo              # regenerate the clip above, headless
 ```
 
 `make demo` is the slow one, because it renders a real browser and has to
-download a headless Chromium to do it. Measured on this machine: **about 27
-seconds** to re-record once the toolchain is there — 27.4, 27.6 and 27.3 s over
+download a headless Chromium to do it. Measured on this machine: **about 30
+seconds** to re-record once the toolchain is there — 28.5, 29.8 and 29.8 s over
 three runs. The first run adds the Chromium download on top of that, which I
 have not timed, so the wall clock for a first `make demo` is the one number
 here I cannot give you. It leaves **760 MB** in `demo/.toolchain/` — 549 MB of
