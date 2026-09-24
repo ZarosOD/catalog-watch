@@ -275,10 +275,15 @@ are pinned: the zip member timestamps and the Office document clock inside the
 `--serve` binds an ephemeral port so runs never collide, and the port is
 dropped on the way out, because a fixture page is identified by its path.
 
-The one exemption is the **Run** sheet, which prints `run at <timestamp>`. That
-is the line you check to know this morning's 06:00 run actually happened, and
-it is kept on purpose. `out/products.csv` has no exemption at all.
-`tests/test_report.py` asserts each of these with the clock moved by hand.
+The exemption is the run summary, which prints two timestamps: `run at
+<timestamp>`, and `compared against the run at <timestamp>` for the snapshot
+it diffed. Those are the lines you check to know this morning's 06:00 run
+actually happened and what it measured itself against, and they are kept on
+purpose. They appear twice, because the **Run** sheet is a copy of
+`out/changes.txt` — so those two files move and nothing else does.
+`out/products.csv` has no exemption at all and is `cmp`-identical.
+`tests/test_report.py` asserts each of these with the clock moved by hand —
+both clocks, separately, so neither can quietly spread to another sheet.
 
 ## Sample data
 
@@ -327,7 +332,7 @@ make fixtures     # regenerate them
 make test          # or: .venv/bin/python -m pytest -q
 ```
 
-270 tests, two of which skip in a dead clone — the `ffprobe` cross-check in
+272 tests, two of which skip in a dead clone — the `ffprobe` cross-check in
 `tests/test_readme_clip.py`, which needs a toolchain `make demo` downloads.
 They are the suite's only skips and they are a cross-check, not a guard.
 

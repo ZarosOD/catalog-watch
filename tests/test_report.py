@@ -306,10 +306,18 @@ class TestReproducible:
 #: report cannot say when it ran is worse than one whose report fails `cmp`.
 #: Everything else in the file is decided by the catalogue, so everything else
 #: has to be byte-identical; the exemption is one sheet wide and no wider.
+#:
+#: Two cells move, not one: `run at` (report.py:283, this run's clock) and
+#: `compared against the run at` (report.py:300, the baseline's). A real
+#: `make run` writes its own baseline each pass, so both move there even
+#: though `_two_runs` below pins the second. Both are provenance and both are
+#: confined to this sheet — `test_the_previous_runs_clock_is_confined_to_the_
+#: run_sheet` is what holds that second half up.
 RUN_SHEET_IS_DELIBERATE_PROVENANCE = """
 The Run sheet is the only member allowed to move between two runs, because it
-prints the run time as a visible cell on purpose. If this assertion is failing
-on some *other* member, that member has picked up something that is not the
+prints two timestamps as visible cells on purpose: this run's clock, and the
+clock of the baseline it compared against. If this assertion is failing on
+some *other* member, that member has picked up something that is not the
 catalogue — find it, do not widen this exemption.
 """
 
@@ -374,7 +382,7 @@ class TestTwoRunsOverOneCatalogue:
             str(out),
             "--quiet",
         ]
-        if out.name != "baseline":
+        if not out.name.startswith("baseline"):
             # Neither compared run may write state, or the second would read
             # the first's and report a different set of changes — a real
             # difference, and nothing to do with reproducibility.
@@ -397,6 +405,66 @@ class TestTwoRunsOverOneCatalogue:
             "2026-03-03T06:00:00+00:00",
         )
         return first, second
+
+    def _two_runs_over_moving_baselines(self, repo, tmp_path, monkeypatch):
+        """`_two_runs`, inverted: the baseline's clock moves and this run's
+        does not.
+
+        `_two_runs` shares one baseline, so the Run sheet's second timestamp —
+        `compared against the run at <clock>` — is identical in both of its
+        runs and never gets asserted about. A real `make run` writes a fresh
+        baseline on every pass, so that cell moves there too. Moving only the
+        older clock isolates it: whatever differs below is the baseline's
+        timestamp and nothing else.
+        """
+        runs = []
+        for tag, baseline_clock in (
+            ("a", "2026-03-01T06:00:00+00:00"),
+            ("b", "2026-03-01T18:30:00+00:00"),
+        ):
+            state_path = tmp_path / f"state_{tag}.json"
+            self._run(
+                repo, monkeypatch, state_path, tmp_path / f"baseline_{tag}",
+                baseline_clock, fixture="site",
+            )
+            runs.append(
+                self._run(
+                    repo, monkeypatch, state_path, tmp_path / f"day2_{tag}",
+                    "2026-03-02T06:00:00+00:00",
+                )
+            )
+        return runs
+
+    def test_the_previous_runs_clock_is_confined_to_the_run_sheet(
+        self, repo, tmp_path, monkeypatch
+    ):
+        """Move the baseline's clock and the Catalogue sheet, the Changes
+        sheet and the CSV must not notice.
+
+        Without this, the previous-run timestamp could migrate out of the Run
+        sheet — into a Catalogue header, say — and the suite would stay green,
+        because every other test here compares two runs that share a baseline.
+        `make run` would then have a second moving member and no test to say so.
+        """
+        first, second = self._two_runs_over_moving_baselines(repo, tmp_path, monkeypatch)
+        run_sheet = sheet_members(first / "products.xlsx")["Run"]
+
+        with zipfile.ZipFile(first / "products.xlsx") as a, zipfile.ZipFile(
+            second / "products.xlsx"
+        ) as b:
+            assert a.namelist() == b.namelist()
+            moved = [name for name in a.namelist() if a.read(name) != b.read(name)]
+            before, after = a.read(run_sheet), b.read(run_sheet)
+
+        # Named first: the equality below is vacuous if the clock we moved
+        # never reached the sheet, which is exactly what a passing-but-empty
+        # version of this test would look like.
+        assert b"compared against the run at 2026-03-01T06:00:00+00:00" in before
+        assert b"compared against the run at 2026-03-01T18:30:00+00:00" in after
+        assert moved == [run_sheet], RUN_SHEET_IS_DELIBERATE_PROVENANCE
+        assert (first / "products.csv").read_bytes() == (
+            second / "products.csv"
+        ).read_bytes()
 
     def test_only_the_run_sheet_differs_across_two_runs(self, repo, tmp_path, monkeypatch):
         """Member by member, so a failure names what moved instead of saying
@@ -441,6 +509,29 @@ class TestTwoRunsOverOneCatalogue:
         assert (first / "products.csv").read_bytes() == (
             second / "products.csv"
         ).read_bytes()
+
+    def test_the_text_summary_moves_only_where_the_workbook_does(
+        self, repo, tmp_path, monkeypatch
+    ):
+        """`make run` advertises three files; this class was asserting two.
+
+        `out/changes.txt` is the same summary the Run sheet copies, so it
+        carries the same clock and is exempt for the same reason — but only
+        for that reason. Asserted line by line rather than with `cmp`, so the
+        exemption is the two timestamps and not the whole file.
+        """
+        first, second = self._two_runs(repo, tmp_path, monkeypatch)
+        before = (first / "changes.txt").read_text(encoding="utf-8").splitlines()
+        after = (second / "changes.txt").read_text(encoding="utf-8").splitlines()
+        assert len(before) == len(after)
+
+        moved = [(a, b) for a, b in zip(before, after) if a != b]
+        assert moved == [
+            (
+                "  run at   2026-03-02T06:00:00+00:00",
+                "  run at   2026-03-03T06:00:00+00:00",
+            )
+        ], RUN_SHEET_IS_DELIBERATE_PROVENANCE
 
     def test_the_url_column_carries_no_port(self, repo, tmp_path, monkeypatch):
         """Named directly, because the test above would also pass if the port
