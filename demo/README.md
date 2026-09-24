@@ -292,8 +292,10 @@ is how to verify the from-nothing path still works.
   network and the re-record time not to. The two recipes download *separate*
   Chromiums (Playwright's into `demo/.toolchain/browsers`, VHS's into
   `~/.cache/rod`), so a repo that records both pays for both. The Playwright
-  toolchain measures 760 MB, 549 MB of it the unpacked Chromium; `make clean`
-  removes it.
+  toolchain — what `make demo` alone leaves — measures 762 MB, 549 MB of it the
+  unpacked Chromium; `make demo-terminal` puts 24 MB more in the same directory
+  (`vhs` and `ttyd`) on top of that second Chromium. `make clean` removes
+  `demo/.toolchain/`, not `~/.cache/rod`.
 - **The clip is a GIF and an MP4 of the same recording, at different sizes.**
   The GIF is for embedding in a README, so it is scaled to `GIF_WIDTH` (1000)
   to keep the page loading; the MP4 is for anywhere that will play video, and
