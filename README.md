@@ -265,25 +265,27 @@ red. Then **Catalogue**, the full snapshot with flagged rows highlighted. Then
 
 `out/changes.txt` — the summary at the top of this README.
 
-### Two runs over one catalogue write the same bytes
+### Two runs over one catalogue write the same bytes, but for the run clock
 
 Run this against an unchanged catalogue twice and `cmp` says the files are the
-same, so "nothing moved overnight" is a question you can answer without opening
-anything. Three things would otherwise have moved on their own, and all three
-are pinned: the zip member timestamps and the Office document clock inside the
-`.xlsx`, both flattened after the save, and the origin in the `url` column —
-`--serve` binds an ephemeral port so runs never collide, and the port is
-dropped on the way out, because a fixture page is identified by its path.
+same, apart from the two timestamps below, so "nothing moved overnight" is a
+question you can answer without opening anything. Three things would otherwise
+have moved on their own, and all three are pinned: the zip member timestamps
+and the Office document clock inside the `.xlsx`, both flattened after the
+save, and the origin in the `url` column — `--serve` binds an ephemeral port so
+runs never collide, and the port is dropped on the way out, because a fixture
+page is identified by its path.
 
 The exemption is the run summary, which prints two timestamps: `run at
 <timestamp>`, and `compared against the run at <timestamp>` for the snapshot
 it diffed. Those are the lines you check to know this morning's 06:00 run
 actually happened and what it measured itself against, and they are kept on
 purpose. They appear twice, because the **Run** sheet is a copy of
-`out/changes.txt` — so those two files move and nothing else does.
-`out/products.csv` has no exemption at all and is `cmp`-identical.
-`tests/test_report.py` asserts each of these with the clock moved by hand —
-both clocks, separately, so neither can quietly spread to another sheet.
+`out/changes.txt` — so `out/changes.txt` and `out/products.xlsx` move, and
+nothing else does. `out/products.csv` has no exemption at all and is
+`cmp`-identical. `tests/test_report.py` asserts each of these with the clock
+moved by hand — both clocks, separately, so neither can quietly spread to
+another sheet.
 
 ## Sample data
 
