@@ -7,10 +7,12 @@ import io
 import re
 import zipfile
 from decimal import Decimal
+from xml.etree import ElementTree
 
 from catalog_watch import report
 from catalog_watch.diff import compare
 from catalog_watch.models import IN_STOCK, OUT_OF_STOCK, Product, Snapshot
+from catalog_watch.serve import FIXTURE_ORIGIN
 
 
 def snapshot(*products: Product, at="2026-01-02T06:00:00+00:00") -> Snapshot:
@@ -268,13 +270,9 @@ class TestReproducible:
         repack that the library applies and the CLI path bypasses would pass
         every test above and still ship a moving file.
 
-        This asserts the *container* is flat, not that two CLI runs are
-        byte-equal. They are not, and not for any reason `_repack` owns: the
-        bundled demo is served on an ephemeral port, so the product URLs —
-        `http://127.0.0.1:<port>/...` — differ per run in the Catalogue sheet
-        and in products.csv alike, and the Run sheet prints the run time as a
-        visible cell. Both are contents of the report. Asserting `cmp` here
-        would be asserting something untrue of this tool.
+        This asserts the *container* is flat. What two CLI runs do to each
+        other is the next class down, which is the stronger claim and the one
+        to read first.
         """
         from catalog_watch.cli import main
 
@@ -299,3 +297,156 @@ class TestReproducible:
             assert all(
                 item.date_time == (1980, 1, 1, 0, 0, 0) for item in book.infolist()
             )
+
+
+#: Why the Run sheet is exempt below, spelled out because a bare skip reads
+#: like a defect somebody gave up on. `run at <timestamp>` is the line a person
+#: checks to know this morning's 06:00 run actually happened — deliberate
+#: provenance on a daily watcher's report, kept on purpose. A watcher whose
+#: report cannot say when it ran is worse than one whose report fails `cmp`.
+#: Everything else in the file is decided by the catalogue, so everything else
+#: has to be byte-identical; the exemption is one sheet wide and no wider.
+RUN_SHEET_IS_DELIBERATE_PROVENANCE = """
+The Run sheet is the only member allowed to move between two runs, because it
+prints the run time as a visible cell on purpose. If this assertion is failing
+on some *other* member, that member has picked up something that is not the
+catalogue — find it, do not widen this exemption.
+"""
+
+_MAIN_NS = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
+_REL_NS = "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}"
+
+
+def sheet_members(path) -> dict[str, str]:
+    """Map sheet title -> zip member, e.g. ``{"Run": "xl/worksheets/sheet3.xml"}``.
+
+    Resolved through workbook.xml rather than assuming "the Run sheet is
+    sheet3.xml", which stops being true the day somebody inserts a sheet — and
+    would silently exempt the wrong one.
+    """
+    def member(target: str) -> str:
+        # An OPC target starting with "/" is from the package root; anything
+        # else is relative to the part holding the rels, i.e. xl/. openpyxl
+        # writes the absolute form, but both are legal and both get read.
+        return target.lstrip("/") if target.startswith("/") else "xl/" + target
+
+    with zipfile.ZipFile(path) as book:
+        targets = {
+            node.get("Id"): member(node.get("Target"))
+            for node in ElementTree.fromstring(book.read("xl/_rels/workbook.xml.rels"))
+        }
+        workbook = ElementTree.fromstring(book.read("xl/workbook.xml"))
+    return {
+        sheet.get("name"): targets[sheet.get(_REL_NS + "id")]
+        for sheet in workbook.iter(_MAIN_NS + "sheet")
+    }
+
+
+class TestTwoRunsOverOneCatalogue:
+    """Run the tool twice over the same catalogue on two different days and
+    every byte it writes has to be the same, bar the Run sheet.
+
+    This is the claim the whole `_repack` effort is for, asserted end to end
+    through `main()` rather than through the library, and it is where the two
+    per-run accidents get caught:
+
+      * the **wall clock**, flattened in the container by `_repack` and moved
+        by hand here so this cannot pass by two runs landing in one second;
+      * the **ephemeral port**, canonicalised in `serve.without_serving_origin`
+        — the fixture server binds port 0, and before that fix the port rode
+        into the `url` column of the Catalogue sheet *and* of products.csv,
+        which is why the CSV is asserted here too rather than in its own test.
+    """
+
+    def _run(self, repo, monkeypatch, state_path, out, clock, fixture="site-day2"):
+        from catalog_watch import state as state_module
+        from catalog_watch.cli import main
+
+        monkeypatch.setattr(state_module, "now_utc", lambda: clock)
+        argv = [
+            "--serve",
+            str(repo / "fixtures" / fixture),
+            "--site",
+            str(repo / "sites" / "fixture.json"),
+            "--state",
+            str(state_path),
+            "--out",
+            str(out),
+            "--quiet",
+        ]
+        if out.name != "baseline":
+            # Neither compared run may write state, or the second would read
+            # the first's and report a different set of changes — a real
+            # difference, and nothing to do with reproducibility.
+            argv.append("--no-state")
+        assert main(argv) == 0
+        return out
+
+    def _two_runs(self, repo, tmp_path, monkeypatch):
+        state_path = tmp_path / "state.json"
+        self._run(
+            repo, monkeypatch, state_path, tmp_path / "baseline",
+            "2026-03-01T06:00:00+00:00", fixture="site",
+        )
+        first = self._run(
+            repo, monkeypatch, state_path, tmp_path / "first",
+            "2026-03-02T06:00:00+00:00",
+        )
+        second = self._run(
+            repo, monkeypatch, state_path, tmp_path / "second",
+            "2026-03-03T06:00:00+00:00",
+        )
+        return first, second
+
+    def test_only_the_run_sheet_differs_across_two_runs(self, repo, tmp_path, monkeypatch):
+        """Member by member, so a failure names what moved instead of saying
+        the files differ."""
+        first, second = self._two_runs(repo, tmp_path, monkeypatch)
+        run_sheet = sheet_members(first / "products.xlsx")["Run"]
+        assert sheet_members(second / "products.xlsx")["Run"] == run_sheet
+
+        with zipfile.ZipFile(first / "products.xlsx") as a, zipfile.ZipFile(
+            second / "products.xlsx"
+        ) as b:
+            assert a.namelist() == b.namelist()
+            moved = [name for name in a.namelist() if a.read(name) != b.read(name)]
+
+        # Equality, not a subset: `moved == []` means the clock did not move
+        # and this test proved nothing, so a static clock fails here too.
+        assert moved == [run_sheet], RUN_SHEET_IS_DELIBERATE_PROVENANCE
+
+    def test_the_run_sheet_moves_because_of_the_clock_and_nothing_else(
+        self, repo, tmp_path, monkeypatch
+    ):
+        """The exemption names one cause. Pinning it to the timestamps keeps
+        the sheet from quietly becoming a place other per-run noise can hide.
+        """
+        first, second = self._two_runs(repo, tmp_path, monkeypatch)
+        run_sheet = sheet_members(first / "products.xlsx")["Run"]
+        with zipfile.ZipFile(first / "products.xlsx") as a, zipfile.ZipFile(
+            second / "products.xlsx"
+        ) as b:
+            before, after = a.read(run_sheet), b.read(run_sheet)
+
+        assert b"run at   2026-03-02T06:00:00+00:00" in before
+        assert b"run at   2026-03-03T06:00:00+00:00" in after
+        # The two differ only where the timestamp is: put one clock back and
+        # the sheets are identical.
+        assert before.replace(b"2026-03-02T06:00", b"2026-03-03T06:00") == after
+
+    def test_the_csv_is_byte_identical_across_two_runs(self, repo, tmp_path, monkeypatch):
+        """No exemption here: products.csv carries the url column and no clock,
+        so the ephemeral-port fix makes it fully `cmp`-green."""
+        first, second = self._two_runs(repo, tmp_path, monkeypatch)
+        assert (first / "products.csv").read_bytes() == (
+            second / "products.csv"
+        ).read_bytes()
+
+    def test_the_url_column_carries_no_port(self, repo, tmp_path, monkeypatch):
+        """Named directly, because the test above would also pass if the port
+        were stable for an unrelated reason — a fixed port, say, which would
+        bring back the collisions `serve.py` binds port 0 to avoid."""
+        first, _ = self._two_runs(repo, tmp_path, monkeypatch)
+        text = (first / "products.csv").read_text(encoding="utf-8")
+        assert f"{FIXTURE_ORIGIN}/products/TW-1004.html" in text
+        assert not re.search(r"127\.0\.0\.1:\d+", text)

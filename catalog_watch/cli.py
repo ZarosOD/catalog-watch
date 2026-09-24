@@ -12,7 +12,7 @@ from .diff import compare
 from .fetch import FetchError, Fetcher, RobotsDisallowed
 from .models import Snapshot
 from .scrape import count_unidentified, find_next_page, parse_products
-from .serve import serve_directory
+from .serve import serve_directory, without_serving_origin
 from .site import SiteConfig, SiteConfigError
 
 EXIT_OK = 0
@@ -175,6 +175,17 @@ def main(argv: list[str] | None = None) -> int:
         except FetchError as exc:
             print(f"watch.py: {exc}", file=sys.stderr)
             return EXIT_FETCH
+
+        if args.serve:
+            # The fixture server binds port 0, so every run scrapes a
+            # different origin. That belongs in the log above, which is about
+            # this process, and nowhere in the report, which is about the
+            # catalogue. Doing it here — once, on the crawl's output — is what
+            # keeps the CSV, the workbook and the saved state agreeing.
+            for product in products:
+                if product.url:
+                    product.url = without_serving_origin(product.url, base_url)
+            notes = [without_serving_origin(note, base_url) for note in notes]
 
     snapshot = Snapshot(
         url=args.url or f"{args.serve} (served locally)",

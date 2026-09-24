@@ -7,6 +7,10 @@ reachable from outside the machine.
 
 ``watch.py --serve fixtures/site`` uses this. ``watch.py https://...`` does not
 go anywhere near it.
+
+Port 0 is why :data:`FIXTURE_ORIGIN` exists: the port is different every run
+and stops meaning anything the moment the process exits, so it must not reach
+the report. See :func:`without_serving_origin`.
 """
 
 from __future__ import annotations
@@ -16,6 +20,24 @@ import functools
 import threading
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+
+#: The origin the report carries for a locally served fixture. A fixture page
+#: is identified by its path; the port it happened to be handed is not part of
+#: that identity, and keeping it would make two runs over one unchanged
+#: catalogue write two different files.
+FIXTURE_ORIGIN = "http://127.0.0.1"
+
+
+def without_serving_origin(text: str, base_url: str) -> str:
+    """``text`` with the live serving origin swapped for :data:`FIXTURE_ORIGIN`.
+
+    Takes text rather than a URL because the origin reaches the report by two
+    routes — the ``url`` column, and crawl notes that quote a page — and both
+    have to be canonical for the run to be reproducible. Called once, on
+    everything leaving the crawl, so the CSV, the workbook and the saved state
+    cannot disagree about what a product's URL is.
+    """
+    return text.replace(base_url.rstrip("/"), FIXTURE_ORIGIN)
 
 
 class _QuietHandler(SimpleHTTPRequestHandler):

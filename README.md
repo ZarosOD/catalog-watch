@@ -265,6 +265,21 @@ red. Then **Catalogue**, the full snapshot with flagged rows highlighted. Then
 
 `out/changes.txt` — the summary at the top of this README.
 
+### Two runs over one catalogue write the same bytes
+
+Run this against an unchanged catalogue twice and `cmp` says the files are the
+same, so "nothing moved overnight" is a question you can answer without opening
+anything. Three things would otherwise have moved on their own, and all three
+are pinned: the zip member timestamps and the Office document clock inside the
+`.xlsx`, both flattened after the save, and the origin in the `url` column —
+`--serve` binds an ephemeral port so runs never collide, and the port is
+dropped on the way out, because a fixture page is identified by its path.
+
+The one exemption is the **Run** sheet, which prints `run at <timestamp>`. That
+is the line you check to know this morning's 06:00 run actually happened, and
+it is kept on purpose. `out/products.csv` has no exemption at all.
+`tests/test_report.py` asserts each of these with the clock moved by hand.
+
 ## Sample data
 
 `fixtures/site/` and `fixtures/site-day2/` are two revisions of an invented
@@ -312,7 +327,7 @@ make fixtures     # regenerate them
 make test          # or: .venv/bin/python -m pytest -q
 ```
 
-266 tests, two of which skip in a dead clone — the `ffprobe` cross-check in
+270 tests, two of which skip in a dead clone — the `ffprobe` cross-check in
 `tests/test_readme_clip.py`, which needs a toolchain `make demo` downloads.
 They are the suite's only skips and they are a cross-check, not a guard.
 
