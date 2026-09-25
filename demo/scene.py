@@ -35,8 +35,10 @@ from __future__ import annotations
 
 import argparse
 import csv
+import json
 import sys
 from pathlib import Path
+from urllib.parse import quote
 
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
@@ -107,6 +109,9 @@ MARK_JS = """
     if (!tag) continue;
     const card = tag.closest('.product');
     if (!card) continue;
+    // Idempotent: NARRATE_JS calls this again every time the parser adds a
+    // node, so a card that is already marked must not collect a second badge.
+    if (card.classList.contains('cw-mark')) continue;
     card.classList.add('cw-mark');
     if (label === 'price cut') card.classList.add('cw-down');
     const badge = document.createElement('span');
@@ -116,6 +121,100 @@ MARK_JS = """
   }
 }
 """
+
+# --- putting the narration on the first painted frame ----------------------
+#
+# The two scripts above used to be run *after* the navigation, with
+# `add_style_tag` + `evaluate`. Those are CDP round trips, and they land after
+# the served page has already painted: the bare, un-captioned storefront was on
+# camera for 0.48 s, 0.44 s and 0.52 s at the three `goto` beats of the
+# committed clip — three times in 21 seconds (THE-308, measured frame by frame
+# on the mp4 at 25 fps). This piece is the only one of the five that can have
+# that defect, because it is the only one whose beats are a served page rather
+# than a string handed to `set_content`.
+#
+# So they are installed by a page init script instead. Chromium runs it inside
+# the document before any of the document's own scripts, which means the bar
+# and the marks are put in place by the page itself with no round trip to wait
+# for.
+#
+# `add_init_script` installs one script for every navigation that follows, so
+# the per-beat narration cannot be baked into it; it rides on the URL. The
+# **query string** and not the tidier `#cw=` fragment, for a reason that is
+# only obvious once it has been measured: beats 2 and 4 are the same page, so
+# with a fragment the second of them is a same-document navigation. Run against
+# this repo's Chromium (1134): after `goto(today#cw=A)`, `set_content(terminal)`,
+# `goto(today#cw=B)`, the page is still the terminal panel — no reload, no init
+# script, no storefront at all. With `?cw=` it reloads every time.
+#
+# Nothing about the page the client sees changes: `serve.py` hands the request
+# to `SimpleHTTPRequestHandler`, which drops the query before resolving a path,
+# so these beats are served the same bytes `watch.py` scrapes.
+SPEC_PREFIX = "cw="
+
+NARRATE_JS = """
+(() => {
+  const PREFIX = %(prefix)s;
+  const CSS = %(css)s;
+  const banner = %(banner)s;
+  const mark = %(mark)s;
+  const query = location.search.slice(1);
+  if (!query.startsWith(PREFIX)) return;
+  const spec = JSON.parse(decodeURIComponent(query.slice(PREFIX.length)));
+  // Runs on whatever is in the document so far, and is called again on every
+  // batch of nodes the parser adds. Both halves are idempotent: the bar is
+  // built once, and a marked card is skipped.
+  const install = () => {
+    if (!document.body) return;
+    if (!document.getElementById('cw-banner')) {
+      const style = document.createElement('style');
+      style.textContent = CSS;
+      document.head.appendChild(style);
+      banner([spec.step, spec.when, spec.what]);
+    }
+    mark(spec.marks);
+  };
+  // Not DOMContentLoaded, and the difference is the whole point of the card.
+  //
+  // The marks find their cards by SKU, so nothing can mark a product before
+  // the parser has produced it; waiting for the *whole* document is the easy
+  // way to be sure of that, and it is a race rather than a guarantee. Measured:
+  // one take in three came out with a single frame of bare storefront at the
+  // second `goto` — 0.04 s rather than 0.44 s, so nearly fixed, and still the
+  // defect. Chromium is free to paint before DOMContentLoaded.
+  //
+  // A MutationObserver callback is a microtask, and the event loop drains
+  // microtasks before it updates the rendering. So the callback for a batch of
+  // parsed nodes runs before any frame that could show them: the bar goes up
+  // with the first thing in `body`, and each product is marked in the same
+  // turn it appears. That is an ordering the spec gives, not a margin.
+  const observer = new MutationObserver(install);
+  observer.observe(document, {childList: true, subtree: true});
+  document.addEventListener('DOMContentLoaded', () => {
+    observer.disconnect();
+    install();
+  }, {once: true});
+  install();
+})();
+""" % {
+    "prefix": json.dumps(SPEC_PREFIX),
+    "css": json.dumps(BANNER_CSS),
+    "banner": BANNER_JS,
+    "mark": MARK_JS,
+}
+
+
+def narrated(url: str, step: str, when: str, what: str,
+             marks: dict[str, str] | None = None) -> str:
+    """``url`` with this beat's narration attached, for NARRATE_JS to read.
+
+    The scene's `goto`s go through here rather than carrying a bare URL, so a
+    beat that forgot its caption would be a beat with no `narrated()` call
+    around it — which is a thing a reader and a test can both see.
+    """
+    spec = json.dumps({"step": step, "when": when, "what": what,
+                       "marks": marks or {}})
+    return f"{url}?{SPEC_PREFIX}{quote(spec)}"
 
 
 def here(path: Path) -> str:
@@ -150,12 +249,6 @@ def marks_from_output(out: Path) -> dict[str, str]:
     return found
 
 
-def banner(page, step: str, when: str, what: str, hold: float) -> None:
-    page.add_style_tag(content=BANNER_CSS)
-    page.evaluate(BANNER_JS, [step, when, what])
-    page.wait_for_timeout(hold * 1000)
-
-
 # The title card's two labels. Its shape, colours and typeface are
 # demo/lib/card.py, which is shared and byte-identical in all four repos; the
 # words are here because what this piece turns its input into is a fact about
@@ -178,13 +271,18 @@ def record(video_dir: Path, poster: Path | None = None) -> Path:
         serve_directory(REPO / "fixtures" / "site-day2") as today,
         sheet.Scene(video_dir, poster=poster) as scene,
     ):
-        scene.goto(yesterday, 0)
-        banner(scene.page, "BEFORE", "Mon 06:00", "yesterday's catalogue",
-               HOLD_YESTERDAY)
+        # Every navigation from here on paints its own narration bar — see
+        # NARRATE_JS. Installed inside the `with` because it is the scene's
+        # page it applies to, and the page exists once the scene is open.
+        scene.page.add_init_script(NARRATE_JS)
 
-        scene.goto(today, 0)
-        banner(scene.page, "BEFORE", "Tue 06:00",
-               "the same page this morning. Spot the difference?", HOLD_TODAY)
+        scene.goto(narrated(yesterday, "BEFORE", "Mon 06:00",
+                            "yesterday's catalogue"),
+                   HOLD_YESTERDAY)
+
+        scene.goto(narrated(today, "BEFORE", "Tue 06:00",
+                            "the same page this morning. Spot the difference?"),
+                   HOLD_TODAY)
         # selector=None: this piece's frame is a served page, not one of
         # sheet.py's grids, so the panel is the whole viewport. The card's two
         # halves are then the same page before and after marking, which is
@@ -207,11 +305,13 @@ def record(video_dir: Path, poster: Path | None = None) -> Path:
             sheet.HOLD_COMMAND,
         )
 
+        # The marks ride in with the bar rather than being painted on after
+        # the navigation, for the reason above and for one of their own: they
+        # are the claim the caption beside them makes.
         marks = marks_from_output(out)
-        scene.goto(today, 0)
-        scene.page.evaluate(MARK_JS, marks)
-        banner(scene.page, "AFTER", "Tue 06:00",
-               f"{len(marks)} changes, found unprompted", HOLD_MARKED)
+        scene.goto(narrated(today, "AFTER", "Tue 06:00",
+                            f"{len(marks)} changes, found unprompted", marks),
+                   HOLD_MARKED)
         scene.panel(
             "after", CARD_AFTER_LABEL,
             f"{len(marks)} found unprompted | logged to products.xlsx, Changes sheet",

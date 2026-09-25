@@ -77,12 +77,26 @@ make demo              # regenerate the clip above, headless
 ```
 
 `make demo` is the slow one, because it renders a real browser and has to
-download a headless Chromium to do it. Measured on this machine: **28 to 30
-seconds** to re-record once the toolchain is there — 28.1, 28.2, 28.4, 28.5,
-29.8 and 29.8 s over six runs in two passes, and 29.3 s on one run after the
-title card joined both encodes, which is inside that range: drawing the card
-and prepending 0.8 s to two encodes cost less than the spread between the six.
-The first run adds the Chromium
+download a headless Chromium to do it. Measured on this machine: **40 to 41
+seconds** to re-record once the toolchain is there — 40.3, 40.4, 40.4, 40.5,
+40.2, 40.2, 40.5, 40.2 and 40.6 s over nine runs in three passes.
+
+That figure moved twice, and neither move is in the clip. THE-308 put each
+storefront beat's hold on the `goto` that paints its narration bar rather than
+on a separate call afterwards, and `demo/lib/sheet.py` replays a beat's own
+hold when it re-renders the title card's two panels once the video is closed.
+The two holds it replays here are the ones on beats 2 and 4; they used to
+arrive as zero, and now they are `HOLD_TODAY` plus `HOLD_MARKED`, which is
+2.5 + 4.05 = **6.55 s** of extra wall clock off camera. That one is arithmetic
+over two constants in `demo/scene.py`, not a stopwatch, which is why it is the
+figure quoted: the wall clocks either side of it are noisy enough that their
+difference would be a worse answer than the mechanism is. The older half of
+the gap, against the 28 to 30 seconds this paragraph used to quote, is the
+machine rather than the change: a control on the
+pre-THE-308 scene, same toolchain and same venv, came out at 33.8, 35.6 and
+34.2 s over three runs on the same afternoon — a 1.8 s spread, which is wider
+than it looks next to a 6.55 s attribution and is the reason that attribution
+is not a subtraction. The first run adds the Chromium
 download on top of that, which I have not timed, so the wall clock for a first
 `make demo` is the one number here I cannot give you. It leaves **762 MB** in
 `demo/.toolchain/` — 549 MB of that the unpacked Chromium, and 2 MB the
@@ -340,7 +354,7 @@ make fixtures     # regenerate them
 make test          # or: .venv/bin/python -m pytest -q
 ```
 
-285 tests, four of which skip in a dead clone: the two `ffprobe` cross-checks in
+295 tests, four of which skip in a dead clone: the two `ffprobe` cross-checks in
 `tests/test_readme_clip.py`, and in `tests/test_demo_card.py` the comparison of
 `demo/out/poster.png` against frame 0 of the mp4 and the proof that the title
 card's typeface is the vendored one. All four want something `make demo`
@@ -361,6 +375,7 @@ which is read end to end with nothing but the standard library.
 | `test_demo_fetch.py` | The download retry ladder in `demo/lib/fetch.sh` — the recording toolchain's downloads, not the scraper's — driven against a `curl` shim that fails a scripted number of times. |
 | `test_demo_outputs.py` | That the recording writes both the GIF and the MP4, including the case where `vhs` exits `0` having skipped one of them. |
 | `test_demo_sheet.py` | The shared spreadsheet renderer in `demo/lib/sheet.py`, which draws the clip's closing frame: that it refuses to render a file that is not on disk, that a filtered view keeps the source file's own column letters and row numbers, and that the command on screen is the one whose output is under it. |
+| `test_demo_scene.py` | The narration bar and the change marks in `demo/scene.py`: that every `goto` beat carries its own caption, that the caption travels on a URL that forces a fresh document, and that nothing paints the narration on *after* the page has arrived — which is what used to leave the bare storefront on camera for half a second, three times a clip. |
 | `test_readme_clip.py` | The clip-length sentence in this README, read back off the committed `demo/out/demo.gif` and `demo/out/demo.mp4`. It parses the numbers out of README.md rather than restating them, so a re-record that moves the clip and leaves the prose behind fails here. The duration readers are stdlib, because a dead clone has no `ffprobe`, and they are pinned against hand-built mp4 and gif headers. |
 | `test_readme_counts.py` | The test counts in this README, read back off `pytest --collect-only`: the total, the dead-clone skip figure (off the ffprobe cross-check's own parametrised count, not a number typed twice) and any per-file split quoted below. A count is deterministic, so it is guarded; the wall clocks are not, and `make timings` covers those. |
 
