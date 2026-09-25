@@ -52,7 +52,8 @@ the same name.
 
 All four pieces end their clip on the file the run just wrote, open in a
 spreadsheet grid. That is one job, so it is one file — shared, byte-identical
-everywhere, and policed by `tools/demo_lib_drift.py` like the rest of `lib/`.
+everywhere, and policed like the rest of `lib/` by a drift checker that lives
+in the maintainers' working tree and does not ship inside this repo.
 What stays per-piece is `scene.py`: which files this piece opens, which of its
 columns are worth showing, and what the narration says.
 
