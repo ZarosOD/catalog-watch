@@ -451,8 +451,9 @@ class TestReproducible:
 #: Everything else in the file is decided by the catalogue, so everything else
 #: has to be byte-identical; the exemption is one sheet wide and no wider.
 #:
-#: Two cells move, not one: `run at` (report.py:283, this run's clock) and
-#: `compared against the run at` (report.py:300, the baseline's). A real
+#: Two cells move, not one: `run at` (report.summarise, :293, this run's
+#: clock) and `compared against the run at` (report.summarise, :310, the
+#: baseline's — grep the strings, the line numbers move). A real
 #: `make run` writes its own baseline each pass, so both move there even
 #: though `_two_runs` below pins the second. Both are provenance and both are
 #: confined to this sheet — `test_the_previous_runs_clock_is_confined_to_the_
