@@ -20,7 +20,16 @@ DISCONTINUED = "discontinued"
 AVAILABILITY_VALUES = (IN_STOCK, OUT_OF_STOCK, BACKORDER, PREORDER, DISCONTINUED)
 
 # Fields compared between runs, in the order they appear in the summary.
-TRACKED_FIELDS = ("price", "availability", "name")
+#
+# `description` is deliberately NOT here, and the omission is declared rather
+# than left to be noticed: it is collected, written to both spreadsheets, and
+# never diffed. Vendors re-word blurbs constantly, so every re-word would
+# become a change row, and each one carries its before and after text into the
+# plain-text summary that the scheduled job emails — the one line in this tool
+# that is laid out at a fixed width (see report.summarise). A handful of those
+# would push the price cuts off the top of the mail that exists to carry them.
+# tests/test_diff.py pins the absence so that adding it is a decision.
+TRACKED_FIELDS = ("price", "availability", "name", "category")
 
 
 @dataclass
@@ -38,6 +47,8 @@ class Product:
     currency: str | None = None
     availability: str | None = None
     url: str | None = None
+    category: str | None = None
+    description: str | None = None
     issues: list[str] = field(default_factory=list)
 
     @property
@@ -56,6 +67,8 @@ class Product:
             "currency": self.currency,
             "availability": self.availability,
             "url": self.url,
+            "category": self.category,
+            "description": self.description,
             "issues": list(self.issues),
         }
 
@@ -69,6 +82,13 @@ class Product:
             currency=data.get("currency"),
             availability=data.get("availability"),
             url=data.get("url"),
+            # Absent in a state file written before these two fields existed,
+            # which reads back as None — the same shape as "the selector is
+            # declared and the page did not have it". Both are honest: there is
+            # no recorded value. See diff._FIRST_READ_NOTE for the wording that
+            # had to stop claiming the old one.
+            category=data.get("category"),
+            description=data.get("description"),
             issues=list(data.get("issues") or []),
         )
 
@@ -119,7 +139,17 @@ DELISTED = "delisted"
 UNREADABLE = "unreadable"
 FIRST_READ = "first_read"
 
-KIND_ORDER = ("price", "availability", "name", NEW, DELISTED, UNREADABLE, FIRST_READ)
+# Every kind compare() can emit, in the order the summary lists them. The
+# tracked fields come first and in TRACKED_FIELDS order: a kind missing from
+# here sorts after everything, which is how a new tracked field would quietly
+# end up printed below "readable" instead of beside the other value moves.
+KIND_ORDER = (
+    *TRACKED_FIELDS,
+    NEW,
+    DELISTED,
+    UNREADABLE,
+    FIRST_READ,
+)
 
 
 @dataclass(frozen=True)

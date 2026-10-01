@@ -139,10 +139,11 @@ and replaces the file. That is the whole mechanism, and it means:
 | `price cut` / `price up` | The printed price moved. Reported with the delta and the percentage. |
 | `stock` | Availability moved between in stock, out of stock, back-order, pre-order, discontinued. |
 | `renamed` | The product name on the card changed. |
+| `category` | The product moved from one catalogue category to another. |
 | `new` | A sku that was not there yesterday. |
 | `delisted` | A sku that was there yesterday and is not on the pages we scraped today. |
 | `unreadable` | A field that used to read fine and did not this morning. |
-| `readable` | A field that was unreadable and is readable again. |
+| `readable` | A field that had no recorded value last run and reads fine now. |
 
 `unreadable` is the one that matters. If yesterday's price was 48.00 and today
 the page says "Call for pricing", that is **not** a price cut to zero and it is
@@ -230,6 +231,21 @@ Field selectors are matched inside each product card. `parse` is one of `text`
 missing fields get flagged. A typo in a field name is an error at load time,
 not forty pages into a crawl.
 
+The field names a profile may use are `sku`, `name`, `price`, `availability`,
+`url`, `category` and `description`. Only `sku` is mandatory — products are
+matched between runs by it. The fixture profile above declares five of the
+seven because the fixture storefront prints five; a real catalogue listing a
+category or a blurb gets two more lines of selector and no code change.
+
+**`category` is compared between runs; `description` is not.** A product moving
+category is a catalogue event worth being told about, so it gets a `category`
+row in the change report. A description is prose that vendors re-word
+constantly, and diffing it would make every re-word a change — burying the
+price cuts the report exists to carry, in a summary laid out at a fixed width.
+So the description is collected, written to the CSV and the **Catalogue**
+sheet, and never diffed: you can see what it says today and compare two days'
+files yourself, and the morning mail stays about prices and stock.
+
 **2. A URL instead of `--serve`.**
 
 ```bash
@@ -272,11 +288,19 @@ problem, `4` the site could not be fetched.
 product that disappeared, so nothing drops out of the file without a trace:
 
 ```
-sku,name,price,currency,availability,url,status,change,change_detail,needs_review,issues
-TW-1004,"Braided Dock Line, 12mm x 9m",41.50,USD,in_stock,http://…/products/TW-1004.html,listed,price cut,48.00 -> 41.50 (-6.50 USD (-13.5%)),no,
-TW-1130,"Deck Hatch, 450 x 450mm",,USD,in_stock,http://…/products/TW-1130.html,listed,,,yes,price: no number in 'Call for pricing'
-TW-2101,"Stainless Polish, 500ml",14.80,USD,in_stock,http://…/products/TW-2101.html,delisted,delisted,14.80 -> (no longer listed),no,
+sku,name,price,currency,availability,url,category,description,status,change,change_detail,needs_review,issues
+TW-1004,"Braided Dock Line, 12mm x 9m",41.50,USD,in_stock,http://…/products/TW-1004.html,,,listed,price cut,48.00 -> 41.50 (-6.50 USD (-13.5%)),no,
+TW-1130,"Deck Hatch, 450 x 450mm",,USD,in_stock,http://…/products/TW-1130.html,,,listed,,,yes,price: no number in 'Call for pricing'
+TW-2101,"Stainless Polish, 500ml",14.80,USD,in_stock,http://…/products/TW-2101.html,,,delisted,delisted,14.80 -> (no longer listed),no,
 ```
+
+`category` and `description` are empty above because the bundled fixture's
+storefront does not print either one, so `sites/fixture.json` does not declare
+a selector for them — an undeclared field is left empty rather than filled in
+from somewhere. A profile that declares them fills those two columns the same
+way the other four are filled. The header is the same either way: the column
+set is fixed, so a spreadsheet from one run lines up with a spreadsheet from
+the next.
 
 `out/products.xlsx` — three sheets. **Changes** first, because that is the
 question the file is opened to answer, with price cuts in green and rises in
@@ -354,7 +378,7 @@ make fixtures     # regenerate them
 make test          # or: .venv/bin/python -m pytest -q
 ```
 
-295 tests, four of which skip in a dead clone: the two `ffprobe` cross-checks in
+334 tests, four of which skip in a dead clone: the two `ffprobe` cross-checks in
 `tests/test_readme_clip.py`, and in `tests/test_demo_card.py` the comparison of
 `demo/out/poster.png` against frame 0 of the mp4 and the proof that the title
 card's typeface is the vendored one. All four want something `make demo`
@@ -365,11 +389,11 @@ which is read end to end with nothing but the standard library.
 | File | Covers |
 | --- | --- |
 | `test_scrape.py` | Parsing rules on HTML strings: money, availability, missing and unreadable fields, pagination. |
-| `test_diff.py` | The comparison, including that an unreadable field is never reported as a change in value. |
+| `test_diff.py` | The comparison, including that an unreadable field is never reported as a change in value, that a `category` move is reported, and that a re-worded `description` is not. |
 | `test_state.py` | The state file round trip, atomic writes, and refusing a corrupt or future-version file. |
 | `test_fetch.py` | robots.txt, `Crawl-delay` parsing, retry policy, failure messages. |
 | `test_site.py` | Site profiles failing at load time with a message that says what to fix. |
-| `test_report.py` | CSV shape, XLSX sheets, and the wording of the summary. |
+| `test_report.py` | CSV shape, XLSX sheets, the wording of the summary, and the CSV header quoted in this README, read back off a file `write_csv` actually wrote rather than off the constant that wrote it. |
 | `test_cli.py` | End to end over real HTTP against the fixture, asserting against `tests/expected_changes.json`. |
 | `test_demo_preview.py` | The table renderer in `demo/lib/`: column picking, row caps, the `…` truncation, and erroring on a column the file does not have. |
 | `test_demo_fetch.py` | The download retry ladder in `demo/lib/fetch.sh` — the recording toolchain's downloads, not the scraper's — driven against a `curl` shim that fails a scripted number of times. |

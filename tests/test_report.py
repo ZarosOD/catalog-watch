@@ -81,6 +81,150 @@ class TestCsv:
         assert "48.00 -> 41.50" in row["change_detail"]
 
 
+class TestCategoryAndDescriptionReachBothArtefacts:
+    """THE-452, acceptance 1. Asserted by *name*, not against
+    `report.COLUMNS` — `test_header_and_one_row_per_product` above compares
+    the file's header to the constant that wrote it, so it stays green
+    whatever the constant says. A header check that cannot fail for the wrong
+    header is how two columns go in and nothing notices.
+    """
+
+    def test_the_csv_header_names_both_fields(self, tmp_path):
+        _, rows = build(None, snapshot(product()))
+        path = report.write_csv(tmp_path / "products.csv", rows)
+        header = path.read_text(encoding="utf-8").splitlines()[0].split(",")
+        assert "category" in header
+        assert "description" in header
+
+    def test_the_csv_carries_the_values(self, tmp_path):
+        _, rows = build(
+            None,
+            snapshot(
+                product(
+                    category="Rope & Chain",
+                    description="Twelve millimetre braided line.",
+                )
+            ),
+        )
+        path = report.write_csv(tmp_path / "products.csv", rows)
+        with path.open(encoding="utf-8") as handle:
+            [row] = list(csv.DictReader(handle))
+        assert row["category"] == "Rope & Chain"
+        assert row["description"] == "Twelve millimetre braided line."
+
+    def test_an_unreadable_category_is_an_empty_cell_not_a_guess(self, tmp_path):
+        _, rows = build(
+            None, snapshot(product(category=None, issues=["category: empty"]))
+        )
+        path = report.write_csv(tmp_path / "products.csv", rows)
+        with path.open(encoding="utf-8") as handle:
+            [row] = list(csv.DictReader(handle))
+        assert row["category"] == ""
+        assert row["needs_review"] == "yes"
+        assert "category: empty" in row["issues"]
+
+    def test_the_catalogue_sheet_carries_both_fields(self, tmp_path):
+        from openpyxl import load_workbook
+
+        _, rows = build(
+            None,
+            snapshot(product(category="Rope & Chain", description="Braided line.")),
+        )
+        path = report.write_xlsx(tmp_path / "p.xlsx", rows, [], "s")
+        catalogue = load_workbook(path)["Catalogue"]
+        header = [c.value for c in catalogue[1]]
+        assert "category" in header
+        assert "description" in header
+        assert (
+            catalogue.cell(row=2, column=header.index("category") + 1).value
+            == "Rope & Chain"
+        )
+        assert (
+            catalogue.cell(row=2, column=header.index("description") + 1).value
+            == "Braided line."
+        )
+
+    def test_a_category_move_is_labelled_with_its_own_name(self, tmp_path):
+        """`report.LABELS` has no entry for it on purpose, so this is the
+        first thing to reach the fallback in `label()`."""
+        before = snapshot(product(category="Rope & Chain"))
+        after = snapshot(product(category="Deck Hardware"))
+        _, rows = build(before, after)
+        path = report.write_csv(tmp_path / "products.csv", rows)
+        with path.open(encoding="utf-8") as handle:
+            [row] = list(csv.DictReader(handle))
+        assert row["change"] == "category"
+        assert "Rope & Chain -> Deck Hardware" in row["change_detail"]
+
+    def test_a_category_move_reaches_the_changes_sheet(self, tmp_path):
+        from openpyxl import load_workbook
+
+        before = snapshot(product(category="Rope & Chain"))
+        after = snapshot(product(category="Deck Hardware"))
+        changes, rows = build(before, after)
+        book = load_workbook(report.write_xlsx(tmp_path / "p.xlsx", rows, changes, "s"))
+        assert book["Changes"].cell(row=2, column=1).value == "category"
+        assert book["Changes"].cell(row=2, column=4).value == "Rope & Chain"
+        assert book["Changes"].cell(row=2, column=5).value == "Deck Hardware"
+
+    def test_a_category_move_reaches_the_text_summary(self):
+        before = snapshot(product(category="Rope & Chain"))
+        after = snapshot(product(category="Deck Hardware"))
+        text = report.summarise(after, before, compare(before, after), "Test Shop")
+        assert "1 change since the previous run" in text
+        assert "category" in text
+        assert "Rope & Chain -> Deck Hardware" in text
+
+    def test_a_rewritten_description_leaves_the_summary_empty(self):
+        """The other half of THE-452's judgement: the new text is in the CSV
+        column, and the artefact the schedule emails says nothing moved."""
+        before = snapshot(product(description="Twelve millimetre braided line."))
+        after = snapshot(product(description="Braided 12mm line, by the metre."))
+        text = report.summarise(after, before, compare(before, after), "Test Shop")
+        assert "No changes since the previous run." in text
+
+
+class TestTheReadmeQuotesThisHeader:
+    """The CSV header is written down twice: `report.COLUMNS`, and the fenced
+    block under "What the output looks like" in README.md. Nothing compared
+    them until THE-452 added two columns — one commit away from a README
+    documenting a header the tool no longer writes, which is the test-count
+    drift `test_readme_counts.py` exists for, on a claim a client reads before
+    they run anything.
+    """
+
+    HEADER_LINE = re.compile(r"^sku,name,.*issues$", re.MULTILINE)
+
+    def test_the_readme_states_the_header_exactly_once(self, repo):
+        found = self.HEADER_LINE.findall(
+            (repo / "README.md").read_text(encoding="utf-8")
+        )
+        assert len(found) == 1, (
+            f"README.md should quote the CSV header exactly once; found "
+            f"{len(found)}. If the block moved, move this pattern with it "
+            f"rather than leaving the header unguarded."
+        )
+
+    def test_the_quoted_header_is_the_one_write_csv_produces(self, repo, tmp_path):
+        text = (repo / "README.md").read_text(encoding="utf-8")
+        [quoted] = self.HEADER_LINE.findall(text)
+        _, rows = build(None, snapshot(product()))
+        path = report.write_csv(tmp_path / "products.csv", rows)
+        assert quoted == path.read_text(encoding="utf-8").splitlines()[0]
+
+    def test_every_sample_row_has_one_cell_per_column(self, repo):
+        """A header that gains a column, with the three example rows under it
+        keeping the old field count: drift a reader hits before any test."""
+        text = (repo / "README.md").read_text(encoding="utf-8")
+        [quoted] = self.HEADER_LINE.findall(text)
+        block = text.split(quoted, 1)[1].split("```", 1)[0]
+        rows = [line for line in block.splitlines() if line.startswith("TW-")]
+        assert rows, "no TW- sample rows under the quoted CSV header"
+        for line in rows:
+            [parsed] = list(csv.reader([line]))
+            assert len(parsed) == len(report.COLUMNS), line
+
+
 class TestXlsx:
     def test_three_sheets_with_changes_first(self, tmp_path):
         from openpyxl import load_workbook

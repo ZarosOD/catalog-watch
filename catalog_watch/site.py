@@ -44,7 +44,11 @@ VALID_PARSERS = ("text", "money", "availability", "url")
 
 # A profile can only fill in fields a Product actually has. Catching a typo
 # here beats scraping 40 pages and finding the column empty.
-KNOWN_FIELDS = ("sku", "name", "price", "availability", "url")
+#
+# Every one of these is optional except `sku`: a field whose element is not on
+# the card is left None and, if the profile called it required, flagged. What
+# a field is *not* is defaulted — see Product's own docstring.
+KNOWN_FIELDS = ("sku", "name", "price", "availability", "url", "category", "description")
 
 
 class SiteConfigError(ValueError):
@@ -112,8 +116,13 @@ class SiteConfig:
         stray = [n for n in raw_fields if n not in KNOWN_FIELDS]
         if stray:
             raise SiteConfigError(
+                # "collects", not "tracks": `description` is read and written
+                # to both spreadsheets but is not compared between runs, so
+                # calling this list the tracked set would be a false sentence
+                # in the one message that exists to tell someone what is real.
+                # models.TRACKED_FIELDS is the watched subset.
                 f"unknown field(s) {', '.join(sorted(stray))}; "
-                f"this tool tracks {', '.join(KNOWN_FIELDS)}"
+                f"this tool collects {', '.join(KNOWN_FIELDS)}"
             )
         fields = {n: FieldSpec.from_json(n, f) for n, f in raw_fields.items()}
 

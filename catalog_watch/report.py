@@ -24,6 +24,10 @@ from .models import (
     Snapshot,
 )
 
+# The CSV header and the Catalogue sheet's header, in one place. The product
+# fields first, then what this run made of them. Read by name everywhere
+# (`COLUMNS.index("price")`), so adding an entry is safe; README.md quotes this
+# header and test_report.py reads it back off the file.
 COLUMNS = [
     "sku",
     "name",
@@ -31,6 +35,8 @@ COLUMNS = [
     "currency",
     "availability",
     "url",
+    "category",
+    "description",
     "status",
     "change",
     "change_detail",
@@ -39,7 +45,9 @@ COLUMNS = [
 ]
 
 # Short, unambiguous labels. "price cut" and "price up" read faster in a column
-# than a signed number does.
+# than a signed number does. A kind that is already the clearest word for
+# itself is absent on purpose and falls through to its own name — `category`
+# is the only one today, and test_report.py asserts that it prints.
 LABELS = {
     NEW: "new",
     DELISTED: "delisted",
@@ -74,6 +82,8 @@ def _row(product: Product, status: str, changes: list[Change]) -> dict:
         "currency": product.currency or "",
         "availability": product.availability or "",
         "url": product.url or "",
+        "category": product.category or "",
+        "description": product.description or "",
         "status": status,
         "change": ", ".join(label(c) for c in changes),
         "change_detail": detail,

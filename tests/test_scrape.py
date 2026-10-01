@@ -14,7 +14,7 @@ from catalog_watch.scrape import (
     parse_products,
 )
 
-from helpers import card, make_config, page
+from helpers import card, make_config, make_config_with_extras, page
 
 
 @pytest.fixture
@@ -130,6 +130,64 @@ class TestParseProducts:
 
     def test_empty_page_is_not_an_error(self, config):
         assert parse_products("<html><body></body></html>", config) == []
+
+
+class TestCategoryAndDescription:
+    """THE-452's scope listed `scrape.py` as an edit site and it was not one:
+    `parse_products` loops the profile's declared fields and ends in a bare
+    `setattr(product, name, value)`, so the plumbing was already generic once
+    `KNOWN_FIELDS` and `Product` knew the names. These tests exist because "no
+    change needed" is a claim, and an unasserted one is a guess.
+    """
+
+    @pytest.fixture
+    def extras(self):
+        return make_config_with_extras()
+
+    def test_both_fields_are_read_off_the_card(self, extras):
+        html = page(
+            card(category="Rope & Chain", description="Twelve millimetre braided line.")
+        )
+        [product] = parse_products(html, extras)
+        assert product.category == "Rope & Chain"
+        assert product.description == "Twelve millimetre braided line."
+        assert product.issues == []
+
+    def test_a_missing_optional_element_is_none_and_not_flagged(self, extras):
+        """"Not on the card" for a field nobody called required is a fact
+        about the storefront, not a defect — the treatment `url` already gets.
+        The value stays None and nothing is defaulted."""
+        [product] = parse_products(page(card()), extras)
+        assert product.category is None
+        assert product.description is None
+        assert product.issues == []
+
+    def test_an_empty_element_is_none_with_an_issues_line(self, extras):
+        """The element is on the card and says nothing. That is worth
+        reporting, and it is still not worth guessing at."""
+        [product] = parse_products(page(card(category="", description="")), extras)
+        assert product.category is None
+        assert product.description is None
+        assert "category: empty" in product.issues
+        assert "description: empty" in product.issues
+        assert product.needs_review
+
+    def test_a_required_category_missing_from_the_card_is_flagged(self):
+        config = make_config_with_extras(required=["sku", "category"])
+        [product] = parse_products(page(card()), config)
+        assert product.category is None
+        assert "category: not on the card" in product.issues
+
+    def test_neither_field_is_filled_in_from_the_other(self, extras):
+        """Product's docstring promises a field that could not be read is
+        never filled from a default, from the previous run, or from another
+        field. Two adjacent text fields are where that breaks first."""
+        [product] = parse_products(page(card(category="Rope & Chain")), extras)
+        assert product.category == "Rope & Chain"
+        assert product.description is None
+        [other] = parse_products(page(card(description="Braided line.")), extras)
+        assert other.description == "Braided line."
+        assert other.category is None
 
 
 class TestPagination:

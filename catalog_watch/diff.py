@@ -22,6 +22,17 @@ from .models import (
 )
 
 
+# "no recorded value", not "was unreadable". A field is None in the previous
+# snapshot for either of two reasons now: the run could not read it, or the
+# snapshot was written before the field existed. `category` and `description`
+# were added without bumping the state version, on purpose — refusing every
+# client's baseline over two new optional columns would be a worse trade — so
+# the first run after an upgrade reports them as FIRST_READ, and this sentence
+# has to be true of both causes. It was not before: it told a reader the page
+# had been unreadable, which for the upgrade case is a fact nobody measured.
+_FIRST_READ_NOTE = "{field} had no recorded value last run and is readable now"
+
+
 def _format(field: str, value) -> str:
     if value is None:
         return "-"
@@ -68,7 +79,7 @@ def compare_products(before: Product, after: Product) -> list[Change]:
                     name=name,
                     before=None,
                     after=_format(field, new),
-                    note=f"{field} was unreadable last run and is readable now",
+                    note=_FIRST_READ_NOTE.format(field=field),
                 )
             )
         else:
