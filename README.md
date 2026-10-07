@@ -378,7 +378,7 @@ make fixtures     # regenerate them
 make test          # or: .venv/bin/python -m pytest -q
 ```
 
-334 tests, four of which skip in a dead clone: the two `ffprobe` cross-checks in
+336 tests, four of which skip in a dead clone: the two `ffprobe` cross-checks in
 `tests/test_readme_clip.py`, and in `tests/test_demo_card.py` the comparison of
 `demo/out/poster.png` against frame 0 of the mp4 and the proof that the title
 card's typeface is the vendored one. All four want something `make demo`
@@ -397,7 +397,7 @@ which is read end to end with nothing but the standard library.
 | `test_cli.py` | End to end over real HTTP against the fixture, asserting against `tests/expected_changes.json`. |
 | `test_demo_preview.py` | The table renderer in `demo/lib/`: column picking, row caps, the `…` truncation, and erroring on a column the file does not have. |
 | `test_demo_fetch.py` | The download retry ladder in `demo/lib/fetch.sh` — the recording toolchain's downloads, not the scraper's — driven against a `curl` shim that fails a scripted number of times. |
-| `test_demo_outputs.py` | That the recording writes both the GIF and the MP4, including the case where `vhs` exits `0` having skipped one of them. |
+| `test_demo_outputs.py` | That the recording writes both the GIF and the MP4, including the case where `vhs` exits `0` having skipped one of them — and, on the other side, that `demo/out-terminal/` appears in neither the index nor the committed tree, so the VHS sibling's output cannot be published stale behind a `.gitignore` line that cannot un-track it. A positive control builds a repo that commits one, so an empty answer is not the query's. |
 | `test_demo_sheet.py` | The shared spreadsheet renderer in `demo/lib/sheet.py`, which draws the clip's closing frame: that it refuses to render a file that is not on disk, that a filtered view keeps the source file's own column letters and row numbers, and that the command on screen is the one whose output is under it. |
 | `test_demo_scene.py` | The narration bar and the change marks in `demo/scene.py`: that every `goto` beat carries its own caption, that the caption travels on a URL that forces a fresh document, and that nothing paints the narration on *after* the page has arrived — which is what used to leave the bare storefront on camera for half a second, three times a clip. |
 | `test_readme_clip.py` | The clip-length sentence in this README, read back off the committed `demo/out/demo.gif` and `demo/out/demo.mp4`. It parses the numbers out of README.md rather than restating them, so a re-record that moves the clip and leaves the prose behind fails here. The duration readers are stdlib, because a dead clone has no `ffprobe`, and they are pinned against hand-built mp4 and gif headers. |
