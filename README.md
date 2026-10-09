@@ -256,6 +256,142 @@ files yourself, and the morning mail stays about prices and stock.
 Or, for the scheduled job, set `CATALOG_WATCH_TARGET` and
 `CATALOG_WATCH_SITE`. See [`schedule/README.md`](schedule/README.md).
 
+## One-shot: point it at a catalogue, get a spreadsheet of what is there
+
+The overnight diff above is the headline, and it needs two runs. The **first**
+run is useful on its own: one pass over the catalogue, deduped across pages,
+written out as a CSV and an XLSX of what is listed right now. No baseline, no
+second morning, no schedule — give it a state file it has never seen and the
+summary says so.
+
+This is the use most "scrape a site into a spreadsheet" jobs are actually
+asking for, so here it is run end to end on a catalogue the tool was **not**
+built around.
+
+### The worked example is a foreign catalogue, not the bundled storefront
+
+`fixtures/closeout-grid/` is a second, deliberately unfamiliar fixture. Nothing
+about it resembles `fixtures/site/`:
+
+| | `fixtures/site/` | `fixtures/closeout-grid/` |
+| --- | --- | --- |
+| cards found by | `article.product` | a `data-hb-id` attribute |
+| fields printed | sku, name, price, stock, link | name, price, blurb |
+| product key | a real sku | none — there is no sku on the page |
+| next page | `a.next` | a `data-hb-id` pagination control |
+| blurb markup | — | a `<p>`, except on one card where it is a `<ul>` |
+
+It is synthetic, like everything else in this repo: the selectors come from a
+real client's own reference script for a closeout-sale grid, the products are
+invented, and no live site is contacted. Its two pages are byte copies of that
+job's fixture.
+
+### The profile
+
+`sites/closeout-grid.json`, in full. This is the entire change — no Python in
+this repo was edited to read that site:
+
+```json
+{
+  "name": "Closeout grid (foreign fixture)",
+  "product": { "selector": "[data-hb-id=\"ProductCard\"]" },
+  "fields": {
+    "sku":         { "selector": "[data-hb-id=\"ProductCard-name\"]" },
+    "name":        { "selector": "[data-hb-id=\"ProductCard-name\"]" },
+    "price":       { "selector": "[data-hb-id=\"PriceDisplay\"]", "parse": "money" },
+    "description": { "selector": "[data-hb-id=\"ProductCard-description\"], ul" }
+  },
+  "required": ["sku", "name", "price"],
+  "pagination": { "next_selector": "[data-hb-id=\"Pagination-next\"]", "max_pages": 10 }
+}
+```
+
+Three of those lines are the ones worth reading. `sku` and `name` share a
+selector, because these cards have no sku and the product title is the only
+thing on them that identifies a row. `price` gets `"parse": "money"` and the
+rest stay on the default `text` parse. The `description` selector is a CSS
+selector **list** — the paragraph, or a `<ul>` — which is how the one card that
+prints its blurb as bullets still gets a blurb.
+
+### The run
+
+```bash
+.venv/bin/python watch.py --serve fixtures/closeout-grid \
+  --site sites/closeout-grid.json \
+  --state state/closeout.json --out out/closeout --report
+```
+
+Pasted from that command, `state/closeout.json` not existing yet:
+
+```
+serving fixtures/closeout-grid at http://127.0.0.1:46731/
+scraping Closeout grid (foreign fixture)
+  page 1: http://127.0.0.1:46731/
+  page 2: http://127.0.0.1:46731/daily-sales/closeout-sale?page=2
+wrote out/closeout/products.csv, out/closeout/products.xlsx, out/closeout/changes.txt
+state saved to state/closeout.json
+catalog-watch — Closeout grid (foreign fixture)
+  run at   2026-10-09T14:57:51+00:00
+  target   fixtures/closeout-grid (served locally)
+
+8 products on 2 pages · 7 read clean · 1 needing review
+
+First run: this is the baseline. The next run reports what moved.
+
+1 product needing review (read, not guessed):
+  review      Deck Hat…  Deck Hatch, 450 x 450mm             price: no number in 'Call for pricing'
+
+note: 2 duplicate sku(s) across pages; the first listing won
+```
+
+`out/closeout/products.csv` carries the same thirteen columns as every other
+run — the header quoted under
+[What the output looks like](#what-the-output-looks-like) — with the sku column
+repeating the product name, and `availability`, `url` and `category` empty
+because this catalogue prints none of them. Two of the eight rows, the two
+worth looking at:
+
+```
+"Stainless Polish, 500ml","Stainless Polish, 500ml",14.80,USD,,,,Removes light surface rust and water spotting Safe on 304 and 316 stainless,listed,,,no,
+"Deck Hatch, 450 x 450mm","Deck Hatch, 450 x 450mm",,,,,,"Low-profile acrylic deck hatch, tinted, aluminium frame.",listed,,,yes,price: no number in 'Call for pricing'
+```
+
+Four things happened there that a one-shot export has to get right, and all
+four are in the output above rather than in a claim about it. Ten product cards
+across the two pages became **8** rows: two listings repeat across the page
+boundary and were dropped, which is the `note:` line. The bulleted card's two
+`<li>`s were read as its description. The card priced "Call for pricing" has an
+**empty** price cell and a flag naming the text it could not read — the rule
+this repo is built on is that an unreadable field is left empty and reported,
+never inferred from a neighbour. And the crawl followed the pagination control
+to the second page on its own.
+
+### What this does and does not show
+
+- **It does show the README's claim above is literally true for this site**:
+  pointing the tool at a catalogue of a shape it had never seen was a profile
+  and a URL. The profile format needed nothing added to express it.
+- **A name is a weaker key than a sku.** For a one-shot export it does not
+  matter. For the overnight diff it does: a vendor re-wording a product title
+  reads as one delisting plus one new listing, because matching between runs is
+  by `sku` and `sku` is the title here. A catalogue with no stable identifier
+  on the page is a catalogue this tool can export but should not be scheduled
+  against without saying so.
+- **A CSS selector list is not a preference order.** `"p, ul"` resolves in
+  document order, so on a card carrying both a `<p>` blurb and some unrelated
+  `<ul>`, whichever comes first in the HTML wins — not the one written first.
+  Every card in this fixture has one or the other, so the distinction does not
+  bite here. A site that mixes them on one card needs a real fallback rule,
+  which the profile format does not have.
+- **The two pages sit at `index.html` and `daily-sales/closeout-sale`** because
+  the fixture's own "Next Page" link points at `/daily-sales/closeout-sale`,
+  and `--serve` has to resolve that path for the pagination to be followed for
+  real rather than simulated. That layout is an artefact of serving a fixture
+  over loopback; a real target needs none of it — pass the URL.
+- **Nothing here is guarded by a test.** The suite covers the profile loader
+  and the parser; it does not re-run this command or re-read this section, so
+  the output above is a measurement with a date on it, not an assertion.
+
 ## Options
 
 ```

@@ -1,0 +1,30 @@
+<!-- Page 2 of the synthetic fixture. Two cards repeat product names already seen
+     on page 1 (Braided Dock Line, Seacock) -- the exact pagination-overlap case
+     the client's own script's `seen_products` set exists to catch -- plus two new
+     items. No "next page" control, so the crawl stops here (max_pages never binds). -->
+<html>
+<body>
+<div data-hb-id="Grid-item">
+  <div data-hb-id="ProductCard">
+    <h2 data-hb-id="ProductCard-name">Braided Dock Line, 12mm x 9m</h2>
+    <span data-hb-id="PriceDisplay">$41.50</span>
+    <p data-hb-id="ProductCard-description">Double-braided nylon dock line, UV-treated, eye splice one end.</p>
+  </div>
+  <div data-hb-id="ProductCard">
+    <h2 data-hb-id="ProductCard-name">Bilge Pump, 12V, 750 GPH</h2>
+    <span data-hb-id="PriceDisplay">$38.20</span>
+    <p data-hb-id="ProductCard-description">Submersible bilge pump with integral float switch wiring.</p>
+  </div>
+  <div data-hb-id="ProductCard">
+    <h2 data-hb-id="ProductCard-name">Seacock, Bronze, 25mm</h2>
+    <span data-hb-id="PriceDisplay">$94.80</span>
+    <p data-hb-id="ProductCard-description">Marine-grade bronze seacock, 1in NPT thread.</p>
+  </div>
+  <div data-hb-id="ProductCard">
+    <h2 data-hb-id="ProductCard-name">Anchor Chain, Galvanized, 6mm x 5m</h2>
+    <span data-hb-id="PriceDisplay">$66.10</span>
+    <p data-hb-id="ProductCard-description">Hot-dip galvanized short-link chain, proof-tested.</p>
+  </div>
+</div>
+</body>
+</html>

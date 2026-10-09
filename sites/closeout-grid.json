@@ -1,0 +1,17 @@
+{
+  "name": "Closeout grid (foreign fixture)",
+  "product": {
+    "selector": "[data-hb-id=\"ProductCard\"]"
+  },
+  "fields": {
+    "sku": { "selector": "[data-hb-id=\"ProductCard-name\"]" },
+    "name": { "selector": "[data-hb-id=\"ProductCard-name\"]" },
+    "price": { "selector": "[data-hb-id=\"PriceDisplay\"]", "parse": "money" },
+    "description": { "selector": "[data-hb-id=\"ProductCard-description\"], ul" }
+  },
+  "required": ["sku", "name", "price"],
+  "pagination": {
+    "next_selector": "[data-hb-id=\"Pagination-next\"]",
+    "max_pages": 10
+  }
+}
