@@ -514,7 +514,7 @@ make fixtures     # regenerate them
 make test          # or: .venv/bin/python -m pytest -q
 ```
 
-336 tests, four of which skip in a dead clone: the two `ffprobe` cross-checks in
+344 tests, four of which skip in a dead clone: the two `ffprobe` cross-checks in
 `tests/test_readme_clip.py`, and in `tests/test_demo_card.py` the comparison of
 `demo/out/poster.png` against frame 0 of the mp4 and the proof that the title
 card's typeface is the vendored one. All four want something `make demo`

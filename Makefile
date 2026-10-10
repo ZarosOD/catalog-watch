@@ -46,8 +46,13 @@ demo:
 demo-terminal:
 	@DEMO_RECIPE=vhs DEMO_OUT_DIR=demo/out-terminal ./demo/record.sh
 
+# build/ and *.egg-info/ are setuptools' output from a non-editable install.
+# They hold a *copy* of catalog_watch/, which goes stale the moment the source
+# changes, and `grep -rn` finds it. Both are gitignored, so nothing published
+# carries the copy -- but a local reader greps into it, so clean removes it.
 clean:
 	rm -rf out logs state demo/out demo/out-terminal demo/.toolchain demo/.scratch .pytest_cache
+	rm -rf build catalog_watch.egg-info
 	find . -name __pycache__ -type d -prune -exec rm -rf {} +
 
 # Re-measure the README numbers no test can guard, and print the diff against

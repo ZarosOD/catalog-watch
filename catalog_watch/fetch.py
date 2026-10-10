@@ -11,6 +11,7 @@ between requests, a page cap, and robots.txt checked before the first fetch.
 
 from __future__ import annotations
 
+import http.client
 import time
 import urllib.error
 import urllib.request
@@ -186,6 +187,25 @@ class Fetcher:
                 last_error = TimeoutError()
                 if attempt == self.retries:
                     raise FetchError(f"{url}: timed out after {self.timeout}s") from None
+            except (http.client.HTTPException, OSError) as exc:
+                # Everything that breaks *after* the headers arrived. urllib wraps
+                # only the request-SEND path in URLError, so none of these arrive
+                # as one: a body cut short is http.client.IncompleteRead, a peer
+                # dropping the connection mid-read is ConnectionResetError, a
+                # status line that is not one is http.client.BadStatusLine.
+                #
+                # The pair cannot collapse to one name — BadStatusLine is not an
+                # OSError, ConnectionResetError is not an HTTPException — and it
+                # must stay LAST, because HTTPError and URLError above are both
+                # OSErrors and this clause would otherwise swallow them.
+                #
+                # No UnicodeDecodeError clause on purpose: the decode above passes
+                # errors="replace", so it cannot raise. A clause for it would be
+                # an untestable decoration, not a guard.
+                self._last_request = time.monotonic()
+                last_error = exc
+                if attempt == self.retries:
+                    raise FetchError(f"{url} failed mid-response: {exc!r}") from None
             time.sleep(min(2.0 * (attempt + 1), 5.0))
 
         raise FetchError(f"{url}: {last_error}")
